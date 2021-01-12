@@ -6,6 +6,7 @@ import PySimpleGUI as sg
 # Layout の作成と起動時に処理する関数たち
 
 #外部テキストから設定を読み込み、なければ作成==============
+#全体の設定
 SETTING = configparser.ConfigParser()
 setfile_name = 'setting.ini'
 
@@ -18,6 +19,7 @@ def save_ini_default():
         'APP_good_DPI_mode' : False,
         'Window_Theme' : 'SandyBeach',
         'Color' : 'black,red,blue,limegreen,darkorange,magenta,deepskyblue,green,gray,blueviolet',
+        'Figure_options' : 'DEFAULT',
         }
     SETTING['USER'] = {}
     with open('setting.ini','w') as f:
@@ -28,6 +30,40 @@ if not os.path.exists(setfile_name):
 SETTING.read(setfile_name)
 if 'USER' not in SETTING.sections():
     save_ini_default()
+
+#作図のパラメータ
+FIGURE_OPTIONS = configparser.ConfigParser()
+figfile_name = 'figure_options.ini'
+
+def save_ini_options():
+    FIGURE_OPTIONS['DEFAULT'] = {
+        'Figure_landscape' : True,
+        'Figure_portrait' : False,
+        'Figure_size_x' : 7,
+        'Figure_size_y' : 5,
+        'Figure_dpi' : 100,
+        'Figure_tight' : False,
+        'Color' : True,
+        'Normalize_MWpower' : True,
+        'Normalize_Gain' : True,
+        'Normalize_CT' : True,
+        'Normalize_Scans' : True,
+        'DTA_Normalize' : 0,
+        'DTA_noYscale' : True,
+        'DTA_Grid' : True,
+        'DTA_fixcolor' : False,
+        'DTA_Captions' : 'Data name',
+        'DTA_Csize' : 'medium',
+        'DTA_Cpos1' : 'List',
+        'DTA_Cpos2' : 'Top-Left'
+        }
+    with open(figfile_name, mode='w') as f:
+        FIGURE_OPTIONS.write(f)
+
+if not os.path.exists(figfile_name):
+    save_ini_options()
+FIGURE_OPTIONS.read(figfile_name)
+
 #値の取得==================================================
 ini_fo = SETTING.get('USER','Initial_folder')
 file_row = SETTING.getint('USER','File_list_row')
@@ -36,6 +72,30 @@ Light = SETTING.getboolean('USER','Light_mode')
 DPI_mode = SETTING.getboolean('USER','APP_good_DPI_mode')
 THEME = SETTING.get('USER','Window_Theme')
 COLOR_TEXT = SETTING.get('USER','Color')
+ini_figopt = SETTING.get('USER','Figure_options')
+
+opt_fland = FIGURE_OPTIONS.getboolean(ini_figopt,'Figure_landscape')
+opt_fport = FIGURE_OPTIONS.getboolean(ini_figopt,'Figure_portrait')
+opt_fother = True if opt_fland == False and opt_fport == False else False
+opt_fx = FIGURE_OPTIONS.getfloat(ini_figopt,'Figure_size_x')
+opt_fy = FIGURE_OPTIONS.getfloat(ini_figopt,'Figure_size_y')
+opt_dpi = FIGURE_OPTIONS.getfloat(ini_figopt,'Figure_dpi')
+opt_tight = FIGURE_OPTIONS.getboolean(ini_figopt,'Figure_tight')
+opt_color = FIGURE_OPTIONS.getboolean(ini_figopt,'Color')
+opt_npower = FIGURE_OPTIONS.getboolean(ini_figopt,'Normalize_MWpower')
+opt_ngain = FIGURE_OPTIONS.getboolean(ini_figopt,'Normalize_Gain')
+opt_nct = FIGURE_OPTIONS.getboolean(ini_figopt,'Normalize_CT')
+opt_nscans = FIGURE_OPTIONS.getboolean(ini_figopt,'Normalize_Scans')
+opt_DTA_nig = True if FIGURE_OPTIONS.getboolean(ini_figopt,'DTA_Normalize') == 2 else False
+opt_DTA_npar = True if FIGURE_OPTIONS.getboolean(ini_figopt,'DTA_Normalize') == 1 else False
+opt_DTA_nnon = True if FIGURE_OPTIONS.getboolean(ini_figopt,'DTA_Normalize') == 0 else False
+opt_DTA_noY = FIGURE_OPTIONS.getboolean(ini_figopt,'DTA_noYscale')
+opt_DTA_Grid = FIGURE_OPTIONS.getboolean(ini_figopt,'DTA_Grid')
+opt_DTA_fixcolor = FIGURE_OPTIONS.getboolean(ini_figopt,'DTA_fixcolor')
+opt_DTA_Capt = FIGURE_OPTIONS.get(ini_figopt,'DTA_Captions')
+opt_DTA_Csize = FIGURE_OPTIONS.get(ini_figopt,'DTA_Csize')
+opt_DTA_Cpos1 = FIGURE_OPTIONS.get(ini_figopt,'DTA_Cpos1')
+opt_DTA_Cpos2 = FIGURE_OPTIONS.get(ini_figopt,'DTA_Cpos2')
 
 # 設定を保存する===========================================
 def save_ini(value):
@@ -80,24 +140,24 @@ DTA_col = sg.Tab(' DTA ',k='TAB_dta',layout=[[
     [sg.Button(' ↓ add '),sg.Button(' ↑ remove '),sg.Button('× Clear list')],
     [sg.Listbox('',k='@liuse',size=(I_yoko+10,data_row), select_mode=sg.LISTBOX_SELECT_MODE_EXTENDED),
     sg.Frame('',relief='flat',layout=[[sg.Button(' ↑ ')],[sg.Button(' ↓ ')]])],
-        [sg.Radio('Ignore Intensity',"tate",k='@same',enable_events=True),
-        sg.Radio('Normalize',"tate",k='@normal',enable_events=True,
+        [sg.Radio('Ignore Intensity',"tate",k='@same',default=opt_DTA_nig,enable_events=True),
+        sg.Radio('Normalize',"tate",k='@normal',default=opt_DTA_npar,enable_events=True,
             tooltip=' EMX data are already normalized. \n Detail setting is in Option tab. '),
-        sg.Radio('None',"tate",k='@no',default=True,enable_events=True)],
-    [sg.Checkbox('No Y scale',k='@noysc',default=True,enable_events=True),
-    sg.Checkbox('Grid',k='@grid',default=True,enable_events=True),
-    sg.Radio('Fix Color',"fixcol",k='@fixcol',enable_events=True,
+        sg.Radio('None',"tate",k='@no',default=opt_DTA_nnon,enable_events=True)],
+    [sg.Checkbox('No Y scale',k='@noysc',default=opt_DTA_noY,enable_events=True),
+    sg.Checkbox('Grid',k='@grid',default=opt_DTA_Grid,enable_events=True),
+    sg.Radio('Fix Color',"fixcol",k='@fixcol',default=opt_DTA_fixcolor,enable_events=True,
     tooltip=' Colors are fixed to the spectrum when you chenge the order. '),
-    sg.Radio('Forget Color',"fixcol",k='@fogcol',default=True,enable_events=True)],
+    sg.Radio('Forget Color',"fixcol",k='@fogcol',default=not opt_DTA_fixcolor,enable_events=True)],
     [sg.Text('Separate (%)',size=(10,1)),sg.Slider(k='@stk',range=(0,120),size=(25,10),default_value=0,orientation='h',enable_events=True)],
     [sg.Text('X Margin (%)',size=(10,1)),sg.Slider(k='@mar',range=(5,-30),size=(25,10),default_value=5,orientation='h',enable_events=True)],
     [sg.Text('Captions'),
-    sg.Combo(CAPT,k='@capt',default_value='Data name',enable_events=True),
+    sg.Combo(CAPT,k='@capt',default_value=opt_DTA_Capt,enable_events=True),
     sg.Text('size'),
-    sg.Combo(['large','medium','small'],k='@csize',size=(8,1),default_value='medium',enable_events=True)],
+    sg.Combo(['large','medium','small'],k='@csize',size=(8,1),default_value=opt_DTA_Csize,enable_events=True)],
     [sg.InputText('1;2;3;(manual captions)',k='@capt_my',size=(I_yoko+18,1))],
-    [sg.Text('position'),sg.Combo(['List','Spectrum'],k='@ctype',default_value='List',enable_events=True),
-    sg.Combo(['Top-Right','Top-Left','Bottom-Right','Bottom-Left'],k='@cpos',default_value='Top-Left',enable_events=True),
+    [sg.Text('position'),sg.Combo(['List','Spectrum'],k='@ctype',default_value=opt_DTA_Cpos1,enable_events=True),
+    sg.Combo(['Top-Right','Top-Left','Bottom-Right','Bottom-Left'],k='@cpos',default_value=opt_DTA_Cpos2,enable_events=True),
 #    sg.Checkbox('align',k='@calign'),
     ],
     ])
@@ -137,10 +197,10 @@ cal_col = sg.Tab(' Data Calculation ',k='TAB_cal',layout=[
     [sg.Text('Caution: EMX data are already normalized.')],
 #        [sg.Radio('EMX',"NOR",k='@n_emx',enable_events=True),
 #        sg.Radio('Other (E500, E580, E680, etc.)',"NOR",k='@n_other',default=True,enable_events=True)],
-        [sg.Checkbox('MW power',k='@n_power',default=True,enable_events=True),
-        sg.Checkbox('Gain',k='@n_gain',default=True,enable_events=True)],
-        [sg.Checkbox('Conversion Time',k='@n_convtime',default=True,enable_events=True),
-        sg.Checkbox('Number of Scans',k='@n_scans',default=True,enable_events=True),],
+        [sg.Checkbox('MW power',k='@n_power',default=opt_npower,enable_events=True),
+        sg.Checkbox('Gain',k='@n_gain',default=opt_ngain,enable_events=True)],
+        [sg.Checkbox('Conversion Time',k='@n_convtime',default=opt_nct,enable_events=True),
+        sg.Checkbox('Number of Scans',k='@n_scans',default=opt_nscans,enable_events=True),],
         [sg.Text('Intensity = Intensity\n / Scans / 10^(Gain /20) / ConvTime[sec] / Power[W] ^2',k='@n_text')],
     ])],
 #    [sg.Frame(' g-factor (for DTA data only)',layout=[
@@ -154,20 +214,19 @@ cal_col = sg.Tab(' Data Calculation ',k='TAB_cal',layout=[
     ])
 
 fig_col = sg.Tab(' Figure Option ',k='TAB_adv',layout=[
-#    [sg.Text('Advanced Figure Option')],
     [sg.Text('')],
     [sg.Frame(' Figure size ',layout=[
-    [sg.Radio('7:5 landscape',"size",k='@size_yoko',default=True,enable_events=True),
-        sg.Radio('5:7 portrait',"size",k='@size_tate',enable_events=True)],
-        [sg.Radio('Other',"size",k='@size_manual',enable_events=True),
-        sg.InputText('7',k='@size_MX',size=(4,1),enable_events=True),sg.Text('x'),
-        sg.InputText('5',k='@size_MY',size=(4,1),enable_events=True),
-        sg.Text('  DPI '),sg.InputText('100',k='@size_dpi',size=(4,1),enable_events=True),],
-        [sg.Checkbox('Tight figure',k='@tight',default=False,enable_events=True)],
+    [sg.Radio('7:5 landscape',"size",k='@size_yoko',default=opt_fland,enable_events=True),
+        sg.Radio('5:7 portrait',"size",k='@size_tate',default=opt_fport,enable_events=True)],
+        [sg.Radio('Other',"size",k='@size_manual',default=opt_fother,enable_events=True),
+        sg.InputText(opt_fx,k='@size_MX',size=(5,1),enable_events=True),sg.Text('x'),
+        sg.InputText(opt_fy,k='@size_MY',size=(5,1),enable_events=True),
+        sg.Text('  DPI '),sg.InputText(opt_dpi,k='@size_dpi',size=(6,1),enable_events=True),],
+        [sg.Checkbox('Tight figure',k='@tight',default=opt_tight,enable_events=True)],
     ])],
     [sg.Frame(' Color ',layout=[
-    [sg.Radio('Black all',"color",k='@c_black',enable_events=True),
-     sg.Radio('Colorful',"color",k='@c_color',default=True,enable_events=True)],
+    [sg.Radio('Black all',"color",k='@c_black',default=not opt_color,enable_events=True),
+     sg.Radio('Colorful',"color",k='@c_color',default=opt_color,enable_events=True)],
     [sg.Text(' The Color order can be changed in Setting Tab.')],
 #            [sg.InputText(COLORFUL[0],size=(7,1)),sg.InputText(COLORFUL[1],size=(7,1)),sg.InputText(COLORFUL[2],size=(7,1)),sg.InputText(COLORFUL[3],size=(7,1)),sg.InputText(COLORFUL[4],size=(7,1))],
 #            [sg.InputText(COLORFUL[5],size=(7,1)),sg.InputText(COLORFUL[6],size=(7,1)),sg.InputText(COLORFUL[7],size=(7,1)),sg.InputText(COLORFUL[8],size=(7,1)),sg.InputText(COLORFUL[9],size=(7,1))],
