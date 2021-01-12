@@ -132,10 +132,6 @@ def save_a_data(mode):
         ext = '.png'
         with open('tmp','rb') as f:
             savedata = f.read()
-    elif mode == 'option':############工事中
-#        save_path = 
-        ext = '.opt'
-        savedata = 1##############valueを保存する
     else: return
     win2_active = True
     lyt = [[sg.Text('Folder',size=(7,1)),sg.InputText(save_path,k='@fol_save',size=(50,1),enable_events=True),sg.FolderBrowse(initial_folder=save_path)],
@@ -162,7 +158,7 @@ def save_a_data(mode):
         elif ev_save == 'save' and val_save['@name'] != '':
             sname = val_save['@name']+ ext
             if sname in save_files:
-                sOK = sg.popup_ok_cancel(f'{sname}  exists. \n OverWrite ?')
+                sOK = sg.popup_ok_cancel(f'{sname}  exists. \n\nOverWrite ?')
                 if sOK != 'OK': continue
             filename_s = val_save['@fol_save'] + '/' + val_save['@name'] + ext
             with open(filename_s,'wb') as fr:
@@ -171,9 +167,6 @@ def save_a_data(mode):
             sg.popup('Save complete')
             win2.Close()
             win2_active = False
-#Option読み込み==============================================
-#def read_option_list():
-#def set_options():
 
 #============================================================
 while True:
@@ -246,42 +239,7 @@ while True:
         graph_OK = show_graph()
 #図の保存=====================================================
     elif event == 'save figure' and graph_OK:
-        win2_active = True
-        lyt = [[sg.Text('Folder',size=(7,1)),sg.InputText(save_path,k='@fol_save',size=(50,1),enable_events=True),sg.FolderBrowse(initial_folder=save_path)],
-               [sg.Text('',size=(7,1)),sg.Listbox('',k='@savelist',size=(50,5),enable_events=True)],
-               [sg.Text('Save as',size=(7,1)),sg.InputText('',k='@name',size=(50,1)),sg.Combo(['.png'],size=(10,1),k='@ext',default_value='.png')],
-               [sg.Button('save'), sg.Button('Exit')],]
-        win2 = sg.Window('Save shown graph', lyt)
-        while True:
-            ev_save, val_save = win2.read()
-            if ev_save in ('Exit', sg.WIN_CLOSED):
-                win2.Close()
-                win2_active = False
-                break
-            elif ev_save == '@fol_save':
-                save_files = []
-                try:
-                    files = [f for f in os.listdir(val_save['@fol_save']) if os.path.isfile(os.path.join(val_save['@fol_save'],f))]
-                    for xfile in files:
-                        if xfile[-4:] == '.png': save_files.append(xfile)
-                except: None
-                win2['@savelist'].update(save_files)
-            elif ev_save == '@savelist':
-                win2['@name'].update(val_save['@savelist'][0][:-4])
-            elif ev_save == 'save' and val_save['@name'] != '':
-                sname = val_save['@name']+'.png'
-                if sname in save_files:
-                    sOK = sg.popup_ok_cancel(f'{sname}  exists. \n OverWrite ?')
-                    if sOK != 'OK': continue
-                filename_s = val_save['@fol_save'] + '/' + val_save['@name'] + val_save['@ext']
-                with open('tmp','rb') as f:
-                    zu = f.read()
-                    with open(filename_s,'wb') as fr:
-                        fr.write(zu)
-                save_path = val_save['@fol_save']
-                sg.popup('Save complete')
-                win2.Close()
-                win2_active = False
+        save_a_data('figure')
 #設定の保存==================================================
     elif event == 'save settings':
         save_ini(value)
