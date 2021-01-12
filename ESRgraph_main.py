@@ -246,6 +246,18 @@ while True:
         sg.popup('Save complete.','Settings are applied after restart application.')
     elif event == 'reset':
         window['@c_edit'].update(SETTING['DEFAULT']['Color'])
+#オプションの読込と保存=======================================
+    elif event == 'Load_options':
+        update_options(window,value['@opt_load_name'])
+    elif event == 'Save_options' and value['@opt_save_name'] != '':
+        save_options(value['@opt_save_name'],value)
+        window['@opt_load_name'].update(values=['DEFAULT']+FIGURE_OPTIONS.sections())
+        window['@ini_figopt'].update(values=['DEFAULT']+FIGURE_OPTIONS.sections())
+    elif event == 'Delete the option set':
+        delete_option(value['@opt_load_name'])
+        window['@opt_load_name'].update(values=['DEFAULT']+FIGURE_OPTIONS.sections())
+        window['@ini_figopt'].update(values=['DEFAULT']+FIGURE_OPTIONS.sections())
+        window['@opt_load_name'].update(value='')
 ####### 工事中 ##############################
     elif event == '@@mode' and value['@@mode'] in ('2D','1Dcomplex'):
         sg.popup('Sorry ! \n2D or 1Dcomplex graph is not available yet. ')
