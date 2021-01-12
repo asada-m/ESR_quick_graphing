@@ -2,7 +2,7 @@
 Quick graphing for ESR data  
 
 ESRスペクトルを50秒以内に作図するプログラム  
-ver.0.10 (2021/01/12)
+ver.0.20 (2021/01/12)
 
 ・BrukerのESRデータを素早く作図するのに特化したプログラムです。  
 ・Matlab easyspin の eprload 関数を参考に作成しています。
@@ -40,7 +40,6 @@ pyinstaller -wF ESRgraph_main.py
 ・いろいろなdatデータに対応  
 ・2Dデータの作図  
 ・g値軸の表示  
-・作図オプション設定の保存  
 
 ### ■今のところ追加予定のない機能
 ・par,spc形式のデータの取り扱い  
@@ -51,6 +50,8 @@ pyinstaller -wF ESRgraph_main.py
 ### ■更新履歴
 ver.0.1 (2021/01/12)  
  - 1D データを作図できる最低限の機能  
+ver.0.2 (2021/01/12)  
+ - オプションを保存できるようになった  
 
 ### ■使用ソフトウェア
 Python  
