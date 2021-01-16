@@ -4,12 +4,10 @@ import matplotlib.pyplot as plt
 from matplotlib import ticker, cm
 from ESR_graph_layout import COLORFUL
 
-#COLOR_COLORFUL = ['black','red','blue','limegreen','darkorange','magenta','deepskyblue','green','gray','blueviolet']
-
 #DSCデータ読み込み============================================
 def __read_DSC_file(DSC_filename_fullpath):
     param = {}
-    is_state = 64 # all:64 Mani:32 Pulse:16 2D:8 END:4 Time:2 fs:1 
+    is_state = 256 # all:256 Complex:64 Mani:32 Pulse:16 2D:8 END:4 Time:2 fs:1 
     with open(DSC_filename_fullpath) as f:
         allLines = f.read().splitlines()
     for x in range(len(allLines)):
@@ -38,6 +36,7 @@ def __read_DSC_file(DSC_filename_fullpath):
     if 'XNAM' in param and param['XNAM'] == 'RF': is_state += 4
     if ('XPTS' in param and float(param['XPTS']) > 1) and ('YPTS' in param and float(param['YPTS']) > 1): is_state += 8
     if 'EXPT' in param and param['EXPT'] == 'PLS': is_state += 16
+    if 'IKKF' in param and param['IKKF'] == 'CPLX': is_state += 64
     return param, is_state
 # param:  dictionary{'Key':'Value'} Value=''のこともある
 # err_text: 'error message'
@@ -75,7 +74,7 @@ def folder_select_dat(folder_path):
 #=============================================================
 #検索=========================================================
 def find_data(xfile, value):
-# all:64 Mani:32 Pulse:16 2D:8 END:4 Time:2 fs:1 
+# all:256 Complex:64 Mani:32 Pulse:16 2D:8 END:4 Time:2 fs:1 
     sel_mode_dim, sel_mode_axis, sel_mode_mani = value['@find_d'],value['@find_a'],value['@find_m']
     if   sel_mode_dim == '1D' and xfile[5] & 8: return False
     elif sel_mode_dim == '2D' and not xfile[5] & 8: return False
@@ -87,9 +86,10 @@ def find_data(xfile, value):
         sel_keyword = sel_mode_mani.split(' ')
         for x in sel_keyword:
             if x not in xfile[0]: return False
-    sel_m = {'all':64,'Fieldsweep':1,'Timescan':2,'ENDOR':4,'2D':8,'Pulse':16,'Manipulated':32}
+    sel_m = {'all':256,'Fieldsweep':1,'Timescan':2,'ENDOR':4,'2D':8,'Pulse':16,'Manipulated':32}
     if sel_mode_axis in sel_m.keys() and not xfile[5] & sel_m[sel_mode_axis]: return False
     return True
+
 def find_data_dat(xfile,value):
     sel_keyword = value['@@find_free'].split(' ')
     for x in sel_keyword:
@@ -97,13 +97,12 @@ def find_data_dat(xfile,value):
     return True
 #=============================================================
 #DTAデータ読み込み for graphs====================================
-def load_BES3T(file_info):
-# folder_path: 'C:/user/.../...'
-# file_info: ['file_base', 'file_base.DTA', 'file_base.DSC', param{dictionary}]
+def load_BES3T(file_info,opt):
+# file_info: ['file_base', 'file_base.DTA', 'file_base.DSC', param{dictionary}, 'C:/user/...','datatype']
     folder_path = file_info[4]
-    fn_DTA = folder_path +'\\'+ file_info[1]
+    fn_DTA = folder_path +'/'+ file_info[1]
     param = file_info[3]
-    abs_y, err_text, is_err = [], '', False
+    abs_x, abs_y, err_text, is_err = [], [], '', False
     if 'IKKF' in param and param['IKKF'] != '':
         parts_par = param['IKKF'].split(',')
         nDataValue = len(parts_par)
@@ -164,7 +163,8 @@ def load_BES3T(file_info):
 
     AxisNames = ('X','Y','Z')
     minimum, Width = [0]*3, [0]*3
-    abscissa = [0]*3
+    abscissa, abs_g = [0]*3,[[],[],[]]
+    xg, yg =False,False
     for i in range(3):
         if Dimensions[i]<=1: continue
         AxisType = param[AxisNames[i]+'TYP']
@@ -194,48 +194,44 @@ def load_BES3T(file_info):
             err_text += 'Error: '+file_info[2]+' cannot read NTUP axis\n'
             is_err=True
         GN = AxisNames[i]+'NAM'
+        if opt['gfactor']==True and GN in param and param[GN]=='Field':
+            try:
+                for j in range(len(abscissa[i])):
+                    jiba = abscissa[i][j] + opt['g_mod']
+                    abscissa[i][j] = jiba # 補正後の磁場を保存
+                    abs_g[i].append(float(param['MWFQ']) / jiba * 714.418 /1e+9)
+                if i==0: xg=True
+                elif i==1: yg=True
+            except: err_text += 'Warning: '+file_info[0]+' Cannot make g-factor axis\n'
 
-    Data_matrix_R, Data_matrix_I = [],[]
     with open(fn_DTA, 'rb') as fg:
         Data_matrix = np.fromfile(fg, BytO + NumberFormat)
     # 1D
     if   Dimensions[2] ==1 and Dimensions[1] ==1:
-        abs_x = abscissa[0]
-        if isComp[0] == 0:
-            Data_matrix_R = np.vstack([abs_x,Data_matrix]).T
-        elif isComp[0] == 1:
-            Data_matrix_R = np.vstack([abs_x,Data_matrix.real,Data_matrix.imag]).T
+        if xg == True:
+            abs_x = abs_g[0]
+        else:
+            abs_x = abscissa[0]
     # 2D
     elif Dimensions[2] ==1 and Dimensions[1] >1:
         Data_matrix = Data_matrix.reshape(Dimensions[1],Dimensions[0])
-        kado = np.array([0])
-        abs_x = abscissa[0]
-        abs_y = abscissa[1]
-        Data_matrix_R = np.vstack([abs_x,Data_matrix.real])
-        Data_matrix_R = Data_matrix_R.T
-        if isComp[0] == 1:
-            Data_matrix_I = np.vstack([abs_x,Data_matrix.imag])
-            Data_matrix_I = Data_matrix_I.T
-
+        Data_matrix = Data_matrix.real
+#        if xg == True:
+#            abs_x = abs_g[0]
+#        else: abs_x = abscissa[0]
+#        if yg == True:
+#            abs_y = abs_g[0]
+#        else: abs_y = abscissa[1]
+        abs_x, abs_y = abscissa[0], abscissa[1]
     else: # Dimensions[2] >1:# 3D data
         err_text += 'Error: '+file_info[0]+' 3D data cannot convert\n'
         is_err=True
-    return Dimensions, abs_x, abs_y, Data_matrix, err_text, is_err
-
-#    if mode == 'plot':
-#        if data_y==[]: data_y = abscissa[1]
-#        return Dimensions, abs_x, abs_y, Data_matrix, err_text, is_err, xg, yg
-#        if Dimensions[2] ==1 and Dimensions[1] >1:
-#            return Dimensions, abs_x, abs_y, Data_matrix, err_text, is_err, xg, yg
-#        else:
-#            return Dimensions, abs_x, data_y, Data_matrix, err_text, is_err, xg, yg
-#    else:
-#        return Data_matrix_R, Data_matrix_I, data_y, text_head, err_text, is_err
+    return abs_x, abs_y, Data_matrix, err_text, is_err
 # Data_matrix = array[1D or 2D, real or complex]
 #=============================================================
 #datデータ読み込み for graphs====================================
 def load_dat(file_info):
-    fullname = file_info[2] + '\\' + file_info[1]
+    fullname = file_info[2] + '/' + file_info[1]
     try:
         with open(fullname, 'r') as f:
             allLines = f.read().splitlines()
@@ -253,12 +249,12 @@ def load_dat(file_info):
             data_r.append(float(d[0]))
         else:
             abs_x.append(float(d[0]))
-            data_r.append(float(d[1]))
+#            for j in range(1,1+min([len(d),opt['column']])):
+            data_r.append(float(d[1]))# 複数列のときdata_rを増やす必要あり: DTAのデータ形式に合わせる
     return np.array(abs_x), np.array(data_r), None
-# ひとまず1D dataのみ
 #=============================================================
 #=============================================================
-#リストのx軸が同じかチェック==================================
+#リストのxy軸が同じかチェック==================================
 def check_axis(flist):
     if   len(flist) == 0: return False
     elif len(flist) == 1: return True
@@ -266,6 +262,13 @@ def check_axis(flist):
         if 'XUNI' in flist[0][3]: ch_x = flist[0][3]['XUNI']
         for x in flist:
             if 'XUNI' in x[3] and x[3]['XUNI'] != ch_x: return False
+        if 'YUNI' in flist[0][3]:
+            ch_y = flist[0][3]['YUNI']
+            for x in flist:
+                if 'YUNI' in x[3] and x[3]['YUNI'] != ch_y: return False
+        else:
+            for x in flist:
+                if 'YUNI' in x[3]: return False
         return True
 #valueからオプション設定=======================================
 def v_to_opt(value,file,isDTA):
@@ -273,14 +276,15 @@ def v_to_opt(value,file,isDTA):
     y = 6 if isDTA == True else 3
     a = '' if isDTA == True else '@'
     if value['@c_black'] == True:
-        opt['c'] = ['black','black','black','black','black','black','black','black','black','black']
+        opt['c'] = ['black'] * len(file)
     else:
         opt['c'] = []
-        if file[0][y] != '':
-            for x in range(len(file)):
-                if file[x][y] != '': opt['c'].append(file[x][y])
-                else:opt['c'].append(COLORFUL[x])
-        else: opt['c'] = COLORFUL
+        for x in range(len(file)):
+            if file[x][y] != '':############################2Dのときerrorが出る
+                opt['c'].append(file[x][y])
+            else:
+                try: opt['c'].append(COLORFUL[x])
+                except: opt['c'].append('black')
     if value['@size_tate'] == True:
         opt['size'], opt['dpi'] = (5.0,7.0), 100.0
     elif value['@size_yoko'] == True:
@@ -293,12 +297,11 @@ def v_to_opt(value,file,isDTA):
     else: opt['size'], opt['dpi'] = (7.0,5.0), 100.0
     opt['grid'] = True if value['@grid'] == True else False
     opt['t'] = True if value['@tight'] == True else False
-    opt['mar_xr'] = value['@mar_XR']/100
-    opt['mar_xl'] = value['@mar_XL']/100
+    opt['mar_xr'] = -value['@mar_XR']/100
+    opt['mar_xl'] = -value['@mar_XL']/100
     opt['mar_y'] = value['@mar_Ya']/100
     opt['y'] = False if value[a+'@noysc'] == True else True
-    opt['stack'] = value[a+'@stk']/100
-    opt['margin'] = value[a+'@mar']/100
+    opt['stack'] = value['@stk']/100
     if 'Bottom' in value[a+'@cpos']: opt['posV'] = ['top',-1]
     else: opt['posV'] = ['bottom',1]
     if 'Right' in value[a+'@cpos']: opt['posH'] = ['right',-1,0.98,-1]
@@ -308,6 +311,7 @@ def v_to_opt(value,file,isDTA):
     if   value[a+'@csize'] == 'large': opt['csize'] = [18.0,0.015,0.08]
     elif value[a+'@csize'] == 'medium': opt['csize'] = [14.0,0.015,0.06]
     else: opt['csize'] = [10.0,0.015,0.04]
+    opt['ax_size'] = 14.0 # 暫定
     
     if isDTA == True:
         if   value['@normal'] == True:
@@ -327,12 +331,24 @@ def v_to_opt(value,file,isDTA):
             opt['capt'] = 'My'
             opt['capt_my'] = value['@capt_my']
         else: opt['capt'] = 'None'
-        if 'IRNAM' in file[0][3]:
+        if 'YNAM' in file[0][3]:
+            opt['ylabel'] = f"{file[0][3]['YNAM']}"
+        elif 'IRNAM' in file[0][3]:
             opt['ylabel'] = f"{file[0][3]['IRNAM']}"
         else: opt['ylabel'] = ''
         if 'XNAM' in file[0][3] and 'XUNI' in file[0][3]:
             opt['xlabel'] = f"{file[0][3]['XNAM']} ({file[0][3]['XUNI']})"
         else: opt['xlabel'] = ''
+        if file[0][5] & 1:
+            opt['gfactor'] = True if value['@g_adjust'] == True else False
+            opt['g_mod'] = float(value['@g_mod'])
+            if value['@g_style'] == 'Bottom: MagField , Top: g-factor':
+                opt['g_axis'], opt['g_field'] = 'Top', 'Bottom'
+            elif value['@g_style'] == 'Bottom: g-factor , Top: MagField':
+                opt['g_axis'], opt['g_field'] = 'Bottom', 'Top'
+            else:
+                opt['g_axis'], opt['g_field'] = 'Bottom', None
+        else: opt['gfactor'],opt['g_mod'],opt['g_field'] = None,None,None
     else:# dat
         if value['@@same'] == True: opt['n'] = 'Ignore'
         else: opt['n'] = 'None'
@@ -343,10 +359,9 @@ def v_to_opt(value,file,isDTA):
             opt['capt'] = 'My'
             opt['capt_my'] = value['@@capt_my']
         else: opt['capt'] = 'None'
-    
-#    if value['@g_cal'] == True:##############
-#        opt['gfactor'] = 2 if value['@g_adjustg'] == True else 1
-#    else: opt['gfactor'] = 0
+        opt['column'] = int(value['@@column'])
+        opt['gfactor'] = False
+        opt['g_axis'], opt['g_field'] = None,None
     return opt
 
 def make_captions(opt,file):
@@ -402,8 +417,8 @@ def make_data_list(filelist,opt,isDTA=True):
     datalist, Datax,Datay, sa = [],[],[],[]
     for xfile in filelist:
         if isDTA == True:
-            _, abs_x, _, Data_matrix, err_text, is_err = load_BES3T(xfile)
-#        Dim, abs_x, abs_y, Data_matrix, err_text, is_err = load_BES3T(xfile)
+            abs_x, _, Data_matrix, err_text, is_err = load_BES3T(xfile,opt)
+#        abs_x, abs_y, Data_matrix, err_text, is_err = load_BES3T(xfile,opt)
             if is_err == True: err += err_text
             tmp_y = Normalize(Data_matrix.real, xfile[3],opt,True)
         else:
@@ -422,14 +437,30 @@ def make_data_list(filelist,opt,isDTA=True):
     # datalist[index] = [x[i], data_r[i]]
     return datalist, err
 
+"""
+def make_data_list_2D(filelist,opt,isDTA=True):
+    err = ''
+    if isDTA == True:
+        abs_x, abs_y, Data_matrix, err_text, is_err = load_BES3T(xfile,opt)
+        if is_err == True: err += err_text
+    return abs_x, abs_y, Data_matrix
+"""
 def get_xpos(xl,xwid,opt,DL):
     tx = xl[0]+xwid*opt['posH'][2]
-    if opt['posH'][0] == 'left':
-        if DL[0][0] > tx: xpos = DL[0][0]
-        else: xpos = tx
-    elif opt['posH'][0] == 'right':
-        if DL[0][-1] < tx: xpos = DL[0][-1]
-        else: xpos = tx
+    if opt['gfactor'] == True: # g-factorのとき左右反転
+        if opt['posH'][0] == 'left':
+            if DL[0][0] < tx: xpos = DL[0][0]
+            else: xpos = tx
+        elif opt['posH'][0] == 'right':
+            if DL[0][-1] > tx: xpos = DL[0][-1]
+            else: xpos = tx
+    else:
+        if opt['posH'][0] == 'left':
+            if DL[0][0] > tx: xpos = DL[0][0] # データが枠外ならテキスト位置は枠内に収める
+            else: xpos = tx
+        elif opt['posH'][0] == 'right':
+            if DL[0][-1] < tx: xpos = DL[0][-1]
+            else: xpos = tx
     return xpos
 
 def get_ypos(DLc,opt,tlength,ywid,xpos,xl):
@@ -441,9 +472,14 @@ def get_ypos(DLc,opt,tlength,ywid,xpos,xl):
         xmin, xmax = xpos-tlength, xl[1]
     else:
         xmin, xmax = xl[0], xpos+tlength
-    for w in range(len(DLc[0])):
-        if xmin <= DLc[0][w] <= xmax:
-             newDL.append(DLc[1][w])
+    if opt['gfactor'] == True:
+        for w in range(len(DLc[0])):
+            if xmin >= DLc[0][w] >= xmax:
+                 newDL.append(DLc[1][w])
+    else:
+        for w in range(len(DLc[0])):
+            if xmin <= DLc[0][w] <= xmax:
+                 newDL.append(DLc[1][w])
     ypos = newDL[opt['posH'][1]]
     for y in newDL:
         if is_b and y > ypos: ypos = y
@@ -453,35 +489,45 @@ def get_ypos(DLc,opt,tlength,ywid,xpos,xl):
 # 複数グラフの表示============================================
 # 1D data のみ可能
 def graph_1D(file,value,isDTA):
-    if isDTA == True: 
-        if check_axis(file)==False: return 'All data must have the same X-axis. '
-    elif isDTA == None: return 'Data type (DTA or dat) unknown'
+    if isDTA == True and check_axis(file)==False: return 'All data must have the same XY axis. '
     opt = v_to_opt(value,file,isDTA)
     try:
-        DL,err = make_data_list(file,opt,isDTA)
+        DL, err = make_data_list(file,opt,isDTA)
         if err: return err
     except: return 'Data file cannot be read.'
     capt = make_captions(opt,file)
-    fig, ax = plt.subplots(figsize=opt['size'],dpi=opt['dpi'])
-    ax.set_xmargin(opt['margin'])
+    if opt['gfactor'] == True and opt['g_axis'] == 'Top':
+        fig, axf = plt.subplots(figsize=opt['size'],dpi=opt['dpi'])
+        axf.set_ylabel(opt['ylabel'],fontsize=opt['ax_size'])
+        axf.tick_params(labelsize=opt['csize'][0])
+        axf.xaxis.set_major_locator(ticker.MaxNLocator(6,steps=[1,2,2.5,5,10]))
+        if opt['grid']==True: axf.grid(axis='y')
+        ax = axf.twiny()
+    else:
+        fig, ax = plt.subplots(figsize=opt['size'],dpi=opt['dpi'])
+    ax.set_xmargin(0)
     ax.set_ymargin(opt['mar_y'])
-    ax.tick_params(labelsize=opt['csize'][0])
-    plt.xlabel('',fontsize=opt['csize'][0])
-    plt.ylabel('',fontsize=opt['csize'][0])
+    ax.tick_params(labelsize=opt['ax_size'])
+    plt.xlabel('',fontsize=opt['ax_size'])
+    plt.ylabel('',fontsize=opt['ax_size'])
     if opt['grid']==True: ax.grid()
     if opt['y']==False: 
         ax.tick_params(labelleft=False)
         ax.tick_params(labelright=False)
         ax.set_yticks([])
-    if opt['t']==True: fig.tight_layout()
     ax.set(ylabel=opt['ylabel'])
     ax.set(xlabel=opt['xlabel'])
     cnt = len(file)
     for c in range(cnt):
         ax.plot(DL[c][0], DL[c][1], color=opt['c'][c])
     xl, yl = ax.get_xlim(), ax.get_ylim()
-    xl_l = xl[0]+(xl[1]-xl[0])*opt['mar_xl']
-    xl_r = xl[1]-(xl[1]-xl[0])*opt['mar_xr']
+    if opt['gfactor'] == True:
+        ax.set_xlabel('g-factor')
+        xl_l = xl[1]-(xl[1]-xl[0])*opt['mar_xl']
+        xl_r = xl[0]+(xl[1]-xl[0])*opt['mar_xr']
+    else:
+        xl_l = xl[0]+(xl[1]-xl[0])*opt['mar_xl']
+        xl_r = xl[1]-(xl[1]-xl[0])*opt['mar_xr']
     ax.set_xlim(xl_l,xl_r)
     xl, yl = ax.get_xlim(), ax.get_ylim()
     xwid, ywid= xl[1]-xl[0], yl[1]-yl[0]
@@ -498,38 +544,72 @@ def graph_1D(file,value,isDTA):
             else:#down
                 ypos = yl[0]+opt['csize'][2]*ywid*(cnt-c)+ywid*0.03
         ax.text(xpos, ypos,capt[c], ha=opt['posH'][0],va=opt['posV'][0],color=opt['c'][c],fontsize=opt['csize'][0])
-    if opt['size']==(5,7):
+    if opt['size'][1] < 5.5:
         ax.xaxis.set_major_locator(ticker.MaxNLocator(6,steps=[1,2,2.5,5,10]))
-    if opt['n'] == 'Normal': plt.title('** Normalized by parameters **',y=1)# ↑にシフトするときはy=1.08
-    elif opt['n'] == 'Ignore': plt.title('** Normalized by max/min intensity **',y=1)
-#    if opt['gfactor'] > 0:##################
-#        axg = ax.twiny()
-#        axg.set_xlabel('g-factor',fontsize=opt['csize'][0])
-#        axg.tick_params(labelsize=opt['csize'][0])
-#        mw = float(file[0][3]['MWFQ'])/1e9*714.418
-#        gl_min, gl_max = mw/xl[0], mw/xl[1]
-#        axg.set_xlim([gl_min,gl_max])
+    if opt['gfactor'] == True:
+        ax.xaxis.set_major_locator(ticker.MaxNLocator(6))
+    if opt['n'] == 'Normal': plt.title('** Normalized by parameters **')# ↑にシフトするときはy=1.08
+    elif opt['n'] == 'Ignore': plt.title('** Normalized by max-min intensity **')
+    if opt['gfactor'] == True:
+        if opt['g_field'] == 'Top':
+            axf = ax.twiny()
+        if opt['g_field'] in ('Top','Bottom'):
+            axf.set_xlabel(opt['xlabel'],fontsize=opt['csize'][0])
+            axf.tick_params(labelsize=opt['csize'][0])
+            mw = float(file[0][3]['MWFQ'])/1e9*714.418
+            fl_left, fl_right = mw/xl[0], mw/xl[1]
+            axf.set_xlim([fl_left,fl_right])
+    if opt['t']==True: fig.tight_layout()
     plt.savefig('tmp',format='png')
     plt.close()
     return None
 #=============================================================
 # 2D dataの表示 (1 file only)#####################################
 def graph_2D(file,value,isDTA):
-    file = file[0]
-    fig, ax = plt.subplots(figsize=opt['size'])
-    ax.set_xmargin(opt['margin'])
+    xfile = file[0]
+    opt = v_to_opt(value,file,isDTA)
+    if isDTA:
+        abs_x, abs_y, Data_matrix, err_text, is_err = load_BES3T(xfile,opt)
+    if is_err: return err
+    fig, ax = plt.subplots(figsize=opt['size'],dpi=opt['dpi'])
+    cs = ax.contourf(abs_x, abs_y, Data_matrix)
+    xl, yl = ax.get_xlim(), ax.get_ylim()
+    xl_l = xl[0]+(xl[1]-xl[0])*opt['mar_xl']
+    xl_r = xl[1]-(xl[1]-xl[0])*opt['mar_xr']
+    ax.set_xlim(xl_l,xl_r)
+    ax.set_ymargin(opt['mar_y'])
+    ax.tick_params(labelsize=opt['csize'][0])
     plt.xlabel('',fontsize=opt['csize'][0])
     plt.ylabel('',fontsize=opt['csize'][0])
-    if opt['g']==True: ax.grid()
-    if opt['y']==False: 
-        ax.tick_params(labelleft=False)
-        ax.tick_params(labelright=False)
-        ax.set_yticks([])
+    if opt['gfactor']==True:
+        if 'Field' in opt['xlabel']:
+            axg = ax.twiny()
+            xl = ax.get_xlim()
+            axg.set_xlabel('g-factor',fontsize=opt['csize'][0])
+            axg.tick_params(labelsize=opt['csize'][0])
+            mw = float(xfile[3]['MWFQ'])/1e9*714.418
+            fl_min, fl_max = mw/xl[0], mw/xl[1]
+            axg.set_xlim([fl_min,fl_max])
+            cbar = fig.colorbar(cs)
+        if 'Field' in opt['ylabel']:
+            axg = ax.twinx()
+            yl = ax.get_ylim()
+            axg.set_ylabel('g-factor',fontsize=opt['csize'][0])
+            axg.tick_params(labelsize=opt['csize'][0])
+            mw = float(xfile[3]['MWFQ'])/1e9*714.418
+            fl_min, fl_max = mw/yl[0], mw/yl[1]
+            axg.set_ylim([fl_min,fl_max])
+            cbar = fig.colorbar(cs, pad=0.18)
+    try: hoge = cbar
+    except: cbar = fig.colorbar(cs)
+    if opt['grid']==True: ax.grid()
+    ax.set(ylabel=opt['ylabel'])
+    ax.set(xlabel=opt['xlabel'])
     if opt['t']==True: fig.tight_layout()
-    if 'IRNAM' in file[3]:
-        ax.set(ylabel=f"{file[3]['IRNAM']}")
-    if 'XNAM' in file[3] and 'XUNI' in file[3]:
-        ax.set(xlabel=f"{file[3]['XNAM']} ({file[3]['XUNI']})")
+    plt.savefig('tmp',format='png')
+    plt.close()
     return None
 #=============================================================
 #=============================================================
+ 
+#cb = plt.colorbar(ax1, cax = cbaxes) 
