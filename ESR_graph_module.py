@@ -1,3 +1,7 @@
+"""
+ESR quick graphing ver 1.0 (2021/01/17)
+データ読み込みとグラフ作成に使用する関数
+"""
 import os
 import numpy as np
 import matplotlib.pyplot as plt

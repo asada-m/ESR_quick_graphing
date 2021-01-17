@@ -1,9 +1,11 @@
+"""
+ESR quick graphing ver 1.0 (2021/01/17)
+Layout の作成と起動時に処理する関数
+"""
 import configparser
 import os
 import sys
 import PySimpleGUI as sg
-
-# Layout の作成と起動時に処理する関数たち
 
 #外部テキストから設定を読み込み、なければ作成==============
 #全体の設定
@@ -147,7 +149,7 @@ def update_options(window,value):
     for x in namelist:
         window[x].update(value = fo[x])
         value[x] = fo[x]
-    sg.popup('Option values are loaded.')
+    sg.popup(f'" {section} " option values are loaded.')
     return True
 
 # 設定を保存する===========================================
@@ -250,15 +252,16 @@ else:
     white_bcolor=(sg.theme_text_color(),sg.theme_background_color())
 
 DTA_col = sg.Tab(' DTA ',k='TAB_dta',layout=[[
-    sg.Text('Folder',size=(5,1)), sg.InputText('C:/',k='@fol_read',size=(I_yoko,1),enable_events=True),
+    sg.InputText('C:/',k='@fol_read',size=(I_yoko+9,1),enable_events=True),
     sg.FolderBrowse(k='@fol_browse',initial_folder=ini_fo)],
-    [sg.Text('Find:',size=(5,1)),
+    [sg.Text('Find:'),
         sg.Combo(['1D','2D'],default_value='1D',size=(4,1),k='@find_d',enable_events=True),
         sg.Combo(['all','Fieldsweep','Timescan','ENDOR',],default_value='all',k='@find_a',enable_events=True),
-        sg.Combo(['all','CW','Pulse','Raw data','Manipulated',' (Free keyword) '],k='@find_m',size=(15,1),enable_events=True,
-        tooltip=' After you input a FREE KEYWORD, please browse again or re-select the other finder box. ')],
+        sg.Combo(['all','CW','Pulse','Raw data','Manipulated',' (Keyword: input here) '],k='@find_m',size=(18,1),enable_events=True,
+        tooltip=' After you input a KEYWORD, please browse again or re-select the other finder box. ')],
     [sg.Listbox('',k='@liall',size=(I_yoko+15,file_row), select_mode=sg.LISTBOX_SELECT_MODE_EXTENDED)],
-    [sg.Button(' ↓ add '),sg.Button(' ↑ remove '),sg.Button('× Clear list')],
+    [sg.Button(' ↓ add '),sg.Button(' ↑ remove '),sg.Button('× Clear list'),
+    ],
     [sg.Listbox('',k='@liuse',size=(I_yoko+10,data_row), select_mode=sg.LISTBOX_SELECT_MODE_EXTENDED),
     sg.Frame('',relief='flat',layout=[[sg.Button(' ↑ ',pad=(0,3))],[sg.Button(' ↓ ',pad=(0,3))]])],
         [sg.Radio('Ignore Intensity',"tate",k='@same',default=fo['@same'],enable_events=True),
@@ -266,7 +269,8 @@ DTA_col = sg.Tab(' DTA ',k='TAB_dta',layout=[[
             tooltip=' EMX data are already normalized. \n Detail setting is in Option tab. '),
         sg.Radio('None',"tate",k='@no',default=fo['@no'],enable_events=True)],
     [sg.Checkbox('align in g-factor → see Option Tab',k='@g_adjust',default=fo['@g_adjust'],enable_events=True,pad=(3,0)),
-    sg.Checkbox('Imaginary',k='@imag',default=False,enable_events=True,visible=False,pad=(3,0))],
+    sg.Checkbox('Imaginary',k='@imag',default=False,enable_events=True,visible=False,pad=(3,0))
+    ],
     [sg.Checkbox('No Y scale',k='@noysc',default=fo['@noysc'],enable_events=True),
     sg.Checkbox('Grid',k='@grid',default=fo['@grid'],enable_events=True),
     sg.Radio('Fix color',"fixcol",k='@fixcol',pad=(3,0),default=fo['@fixcol'],enable_events=True,
@@ -281,14 +285,18 @@ DTA_col = sg.Tab(' DTA ',k='TAB_dta',layout=[[
     sg.Combo(['Top-Left','Top-Right','Bottom-Left','Bottom-Right'],k='@cpos',default_value=fo['@cpos'],enable_events=True),
 #    sg.Button('memo',k='@b_memo',button_color=white_bcolor),
     ],
+#    sg.Frame('',relief='groove',pad=(0,0),size=(15,1),layout=[
+#    [sg.Text('Slice:',k='@2D_text',visible=True),
+#    sg.Spin(list(range(1,11)),k='@2D_slice',size=(3,1),visible=True)]])
     ])
 
 DAT_col = sg.Tab(' dat ',k='TAB_dat',layout=[[
-    sg.Text('Folder',size=(5,1)),sg.InputText('C:/',k='@@fol_read',size=(I_yoko,1),enable_events=True),
+    sg.InputText('C:/',k='@@fol_read',size=(I_yoko+9,1),enable_events=True),
     sg.FolderBrowse(k='@@fol_browse',initial_folder=ini_fo)],
     [sg.Text('Mode'),sg.Combo(['1D'],size=(3,1),default_value='1D',k='@@mode',enable_events=True),
-    sg.Text('Col'),sg.Spin(list(range(1,21)),k='@@column',size=(3,1)),
-    sg.Text('Find'),sg.InputText('',k='@@find_free',size=(17,1),enable_events=True,tooltip=' you can search for multiple words by separating with a space. ')],
+#    sg.Text('Col'),sg.Spin(list(range(1,21)),k='@@column',size=(3,1)),
+    sg.Text('Find'),sg.InputText('',k='@@find_free',size=(17,1),enable_events=True,
+    tooltip=' if separated with a space, multiple words can be searched. ')],
     [sg.Listbox('',k='@@liall',size=(I_yoko+15,file_row), select_mode=sg.LISTBOX_SELECT_MODE_EXTENDED)],
     [sg.Button(' ↓ add ',k='@@b_add'),sg.Button(' ↑ remove ',k='@@b_remove'),sg.Button('× Clear list',k='@@b_clear'),
     ],
@@ -369,7 +377,7 @@ set_col = sg.Tab(' Setting ',k='TAB_set',layout=[
     [sg.Multiline(COLOR_TEXT,k='@c_edit',size=(37,3)),
     sg.Button('reset',k='@b_col_reset',button_color=white_bcolor)],
     [sg.Text('Available color? See: '),
-    sg.Text('https://matplotlib.org',k='@link',font=('default 12 underline'),
+    sg.Text('https://matplotlib.org',k='@link',
     text_color='blue',enable_events=True,size=(20,1),
     tooltip=' https://matplotlib.org/3.3.3/gallery/color/named_colors.html ')],
     ])],
@@ -395,11 +403,11 @@ How_col = sg.Tab(' How to ',k='TAB_how',layout=[
     ])
 
 Info_col = sg.Tab(' Info ',k='TAB_info',layout=[
-    [sg.Text('ESR quick graphing  ver.0.50 ',font=('default 16 bold'))],
+    [sg.Text('ESR quick graphing  ver.1.0 ',font=('default 16 bold'))],
     [sg.Text('Copyright © AsadaMizue 2021 All rights reserved.')],
-    [sg.Text('This is an open-source applicaation.\n\
+    [sg.Text('This is an open-source program.\n\
 The source files for the latest version are available from: ')],
-    [sg.Text('https://github.com/asada-m/ESR_graphing',font=('default 12 underline'),
+    [sg.Text('https://github.com/asada-m/ESR_graphing',
     text_color='blue',enable_events=True,k='@link2')],
     ])
 
@@ -407,8 +415,6 @@ migi_col = sg.Frame('',relief='flat',pad=(0,0),vertical_alignment='top',layout=[
     [sg.Button('show'),sg.Button('save figure'),
     sg.Checkbox('Light mode  ',k='@light',default=Light,
     tooltip=' In Light mode, Press "show" to show graph. '),
-#    sg.Text('Figure Option:'),
-#    sg.Text('FigureOptionSet-->',k='@b_figopt_open',enable_events=True),
     ],
     [sg.Image(data=nograph,k='@imgraph')],
     ])

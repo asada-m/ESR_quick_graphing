@@ -1,5 +1,6 @@
 """
-ESR quick graphing ver. 0.50
+ESR quick graphing ver 1.0 (2021/01/17)
+ESRスペクトルを50秒以内に作図するプログラム
 メインループとウィンドウ操作関係の関数
 """
 import os
@@ -8,7 +9,7 @@ import PySimpleGUI as sg
 import ESR_graph_module as egm
 from ESR_graph_layout import *
 
-window = sg.Window('ESRスペクトルを50秒以内に作図するプログラム ver0.50',LAYOUT,finalize=True)
+window = sg.Window('ESR quick graphing ver1.0',LAYOUT,finalize=True)
 window['@link'].set_cursor(cursor='hand2') # マウスオーバーで発生するイベント
 window['@link2'].set_cursor(cursor='hand2')
 
@@ -21,7 +22,7 @@ flist_DTADSC, flist_DAT = [],[]
 resel = []
 save_path = ''
 isDTA=None
-state = 256
+state_all = 256
 
 #Tab関係=====================================================
 def tab_update():
@@ -40,17 +41,40 @@ def tab_update():
     return isDTA
 #オプション表示切替============================================
 def update_visible_options():
-    global state
-    state = 256
+    global state_all
+    state_all = 256
     # all:256 Complex:64 Mani:32 Pulse:16 2D:8 END:4 Time:2 fs:1 
     if flist_DTADSC and flist_DTADSC[0]:
         for xfile in flist_DTADSC:
             for y in (1,2,4,8,16,32,64):
-                if xfile[5] & y and not state & y: state += y
-#    if fs: window['@g_adjust'].update(visible=True)
-#    else:  window['@g_adjust'].update(visible=False)
-    if state & 64: window['@imag'].update(visible=True)
-    else: window['@imag'].update(visible=False)
+                if xfile[5] & y and not state_all & y: state_all += y
+#    if state_all & 64: window['@imag'].update(visible=True)
+#    else: window['@imag'].update(visible=False)
+
+def update_enable_options():
+    state_staged = 256
+    if file_use_list != []:
+        for xfile in file_use_list:
+            for y in (1,2,4,8,16,32,64):
+                if xfile[5] & y and not state_staged & y: state_staged += y
+    if state_staged & 1:
+        window['@g_adjust'].update(disabled=False)
+    else:
+        window['@g_adjust'].update(disabled=True)
+    if state_staged & 8:
+        for x in ('@same','@normal','@no','@fixcol','@fogcol','@noysc','@capt','@csize','@capt_my','@ctype','@cpos','@stk'):
+            window[x].update(disabled=True)
+#        window['@2D_text'].update(visible=True)
+#        window['@2D_slice'].update(visible=True)
+    else:
+        for x in ('@same','@normal','@no','@fixcol','@fogcol','@noysc','@capt','@csize','@capt_my','@ctype','@cpos','@stk'):
+            window[x].update(disabled=False)
+#        window['@2D_text'].update(visible=False)
+#        window['@2D_slice'].update(visible=False)
+#    if state_staged & 64:
+#        window['@imag'].update(disabled=False)
+#    else:
+#        window['@imag'].update(disabled=True)
 
 def update_margin(xpar, ypar, separate):
     window['@mar_XL'].update(value=xpar)
@@ -265,10 +289,13 @@ while True:
 #データ選択===================================================
     elif event == ' ↓ add ' and value['@liall'] != []:
         file_use,file_use_list = add_files(True)
+        update_enable_options()
     elif event == ' ↑ remove ' and value['@liuse'] != []:
         file_use,file_use_list = remove_files(True)
+        update_enable_options()
     elif event == '× Clear list':
         file_use, file_use_list = [], []
+        update_enable_options()
     elif event == '@@b_add' and value['@@liall'] != []:
         file_use_dat,file_use_list_dat = add_files(False)
     elif event == '@@b_remove' and value['@@liuse'] != []:
@@ -323,8 +350,7 @@ while True:
         window['@opt_load_name'].update(value='')
 #スライダー===================================================
     elif event == '@b_mar_reset':
-        if state & 8: update_margin(0,0,0)
-        else: update_margin(5,5,0)
+        update_margin(0,0,0) if state_all & 8 else update_margin(5,5,0)
 #リンクをブラウザで開く========================================
     elif event == '@link':
         webbrowser.open('https://matplotlib.org/3.3.3/gallery/color/named_colors.html')
