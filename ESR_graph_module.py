@@ -1,6 +1,6 @@
 """
-ESR quick graphing ver 1.0 (2021/01/17)
-データ読み込みとグラフ作成に使用する関数
+ESR quick graphing ver 1.02 (2021/01/17)
+functions for loading data and graphing
 """
 import os
 import numpy as np
@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from matplotlib import ticker, cm
 from ESR_graph_layout import COLORFUL
 
-#DSCデータ読み込み============================================
+# load DSC data ============================================
 def __read_DSC_file(DSC_filename_fullpath):
     param = {}
     is_state = 256 # all:256 Complex:64 Mani:32 Pulse:16 2D:8 END:4 Time:2 fs:1 
@@ -17,23 +17,23 @@ def __read_DSC_file(DSC_filename_fullpath):
     for x in range(len(allLines)):
         line = allLines[x]
         if line == '' : continue
-        if line[-1]=='\\' and x < len(allLines): #\で終わるとき行を結合する
+        if line[-1]=='\\' and x < len(allLines):
             allLines[x+1] = line[0:-1]+allLines[x+1]
             allLines[x]=''
             continue
 #                line.replace(line[-1],'')
-        if len(line)>1: line[-2:].replace('\\n','\n')#改行を改行に変換
+        if len(line)>1: line[-2:].replace('\\n','\n')
         Key = line.split(None,1)[0]
         if len(line.split(None,1)) == 1: Value = ''
-        if len(line.split(None,1)) > 1: Value = line.split(None,1)[1]#最初の区切り１つで分割
+        if len(line.split(None,1)) > 1: Value = line.split(None,1)[1]
         if Key == '': continue
         if Key[0].isalpha() == 0:
             if Key == '#MHL':
                 is_state += 32
                 break
             continue
-        Value = Value.strip()#両端のwhitespaceを削除
-        Value = Value.strip("'")#両端の''を削除
+        Value = Value.strip()
+        Value = Value.strip("'")
         param[Key]=Value
     if ('XNAM' in param and param['XNAM'] == 'Field') or ('YNAM' in param and param['YNAM'] == 'Field'): is_state += 1
     if ('XNAM' in param and param['XNAM'] == 'Time') or ('YNAM' in param and param['YNAM'] == 'Time') or ('XUNI' in param and param['XUNI'] == 'ns'): is_state += 2
@@ -42,10 +42,10 @@ def __read_DSC_file(DSC_filename_fullpath):
     if 'EXPT' in param and param['EXPT'] == 'PLS': is_state += 16
     if 'IKKF' in param and param['IKKF'] == 'CPLX': is_state += 64
     return param, is_state
-# param:  dictionary{'Key':'Value'} Value=''のこともある
+# param:  dictionary{'Key':'Value'}
 # err_text: 'error message'
 #=============================================================
-#フォルダ選択=================================================
+# select folder ==============================================
 def folder_select(folder_path):
     try: files = [f for f in os.listdir(folder_path) if os.path.isfile(os.path.join(folder_path,f))]
     except: return []
@@ -76,7 +76,7 @@ def folder_select_dat(folder_path):
     return filelist_dat
 # flist_dat: ['filename_base', 'filename_dat', folder_path, color]
 #=============================================================
-#検索=========================================================
+# search =========================================================
 def find_data(xfile, value):
 # all:256 Complex:64 Mani:32 Pulse:16 2D:8 END:4 Time:2 fs:1 
     sel_mode_dim, sel_mode_axis, sel_mode_mani = value['@find_d'],value['@find_a'],value['@find_m']
@@ -100,7 +100,7 @@ def find_data_dat(xfile,value):
         if x not in xfile[0]: return False
     return True
 #=============================================================
-#DTAデータ読み込み for graphs====================================
+# load DTA for graphs====================================
 def load_BES3T(file_info,opt):
 # file_info: ['file_base', 'file_base.DTA', 'file_base.DSC', param{dictionary}, 'C:/user/...','datatype']
     folder_path = file_info[4]
@@ -202,7 +202,7 @@ def load_BES3T(file_info,opt):
             try:
                 for j in range(len(abscissa[i])):
                     jiba = abscissa[i][j] + opt['g_mod']
-                    abscissa[i][j] = jiba # 補正後の磁場を保存
+                    abscissa[i][j] = jiba # save MODIFIED field 
                     abs_g[i].append(float(param['MWFQ']) / jiba * 714.418 /1e+9)
                 if i==0: xg=True
                 elif i==1: yg=True
@@ -233,7 +233,7 @@ def load_BES3T(file_info,opt):
     return abs_x, abs_y, Data_matrix, err_text, is_err
 # Data_matrix = array[1D or 2D, real or complex]
 #=============================================================
-#datデータ読み込み for graphs====================================
+# load dat data for graph ====================================
 def load_dat(file_info):
     fullname = file_info[2] + '/' + file_info[1]
     try:
@@ -254,11 +254,11 @@ def load_dat(file_info):
         else:
             abs_x.append(float(d[0]))
 #            for j in range(1,1+min([len(d),opt['column']])):
-            data_r.append(float(d[1]))# 複数列のときdata_rを増やす必要あり: DTAのデータ形式に合わせる
+            data_r.append(float(d[1]))##########
     return np.array(abs_x), np.array(data_r), None
 #=============================================================
 #=============================================================
-#リストのxy軸が同じかチェック==================================
+# are data axes the same?  ==================================
 def check_axis(flist):
     if   len(flist) == 0: return False
     elif len(flist) == 1: return True
@@ -274,7 +274,7 @@ def check_axis(flist):
             for x in flist:
                 if 'YUNI' in x[3]: return False
         return True
-#valueからオプション設定=======================================
+# set option values from values ==================================
 def v_to_opt(value,file,isDTA):
     opt = {}
     y = 6 if isDTA == True else 3
@@ -284,7 +284,7 @@ def v_to_opt(value,file,isDTA):
     else:
         opt['c'] = []
         for x in range(len(file)):
-            if file[x][y] != '':############################2Dのときerrorが出る
+            if file[x][y] != '':############################ 2D error
                 opt['c'].append(file[x][y])
             else:
                 try: opt['c'].append(COLORFUL[x])
@@ -315,7 +315,7 @@ def v_to_opt(value,file,isDTA):
     if   value[a+'@csize'] == 'large': opt['csize'] = [18.0,0.015,0.08]
     elif value[a+'@csize'] == 'medium': opt['csize'] = [14.0,0.015,0.06]
     else: opt['csize'] = [10.0,0.015,0.04]
-    opt['ax_size'] = 14.0 # 暫定
+    opt['ax_size'] = 14.0 # temp
     
     if isDTA == True:
         if   value['@normal'] == True:
@@ -390,9 +390,9 @@ def make_captions(opt,file):
             if opt['capt'] in x[3]: capt.append(x[3][opt['capt']])
             else: capt.append('')
     return capt
-#データの規格化===============================================
+# Normalize data ===============================================
 def Normalize(dataR,param,opt,isDTA=True):
-    if isDTA and opt['n'] == 'Normal': #easyspin先輩がやってるの真似する
+    if isDTA and opt['n'] == 'Normal': 
         if opt['nn'] & 8 and 'AVGS' in param: N = float(param['AVGS'])
         else: N = 1
         if opt['nn'] & 4 and 'SPTP' in param: CT = float(param['SPTP'])*1000
@@ -402,7 +402,7 @@ def Normalize(dataR,param,opt,isDTA=True):
         if opt['nn'] & 1 and 'MWPW' in param: P = float(param['MWPW'])*1000
         else: P = 1
         dataR = dataR / N / G / CT / (P*P)
-    elif isDTA and opt['n'] == 'Ignore': #最大最小値を1,-1または1,0に設定
+    elif isDTA and opt['n'] == 'Ignore': # set max/ min = 1,-1 or 1,0
         if 'EXPT' in param and param['EXPT'] == 'CW':
             if 'XNAM' in param and param['XNAM'] == 'Field':
                 ysize, base = 2, -1
@@ -410,12 +410,12 @@ def Normalize(dataR,param,opt,isDTA=True):
         else: ysize, base = 1, 0
         ymax,ymin = np.amax(dataR), np.amin(dataR)
         dataR = (dataR - ymin) / (ymax - ymin) *ysize +base
-    elif isDTA == False and opt['n'] == 'Ignore': #最大最小値を1,-1に設定
+    elif isDTA == False and opt['n'] == 'Ignore': # set max/min = 1,-1
         ymax,ymin = np.amax(dataR), np.amin(dataR)
         dataR = (dataR - ymin) / (ymax - ymin) *2 -1
     else: None
     return dataR
-#補正したデータリスト作成=====================================
+# modified data list =====================================
 def make_data_list(filelist,opt,isDTA=True):
     err = ''
     datalist, Datax,Datay, sa = [],[],[],[]
@@ -451,7 +451,7 @@ def make_data_list_2D(filelist,opt,isDTA=True):
 """
 def get_xpos(xl,xwid,opt,DL):
     tx = xl[0]+xwid*opt['posH'][2]
-    if opt['gfactor'] == True: # g-factorのとき左右反転
+    if opt['gfactor'] == True: # invert axis for g-factor
         if opt['posH'][0] == 'left':
             if DL[0][0] < tx: xpos = DL[0][0]
             else: xpos = tx
@@ -460,7 +460,7 @@ def get_xpos(xl,xwid,opt,DL):
             else: xpos = tx
     else:
         if opt['posH'][0] == 'left':
-            if DL[0][0] > tx: xpos = DL[0][0] # データが枠外ならテキスト位置は枠内に収める
+            if DL[0][0] > tx: xpos = DL[0][0] # if data is out of margin, shift caption inside
             else: xpos = tx
         elif opt['posH'][0] == 'right':
             if DL[0][-1] < tx: xpos = DL[0][-1]
@@ -490,8 +490,8 @@ def get_ypos(DLc,opt,tlength,ywid,xpos,xl):
         if is_t and y < ypos: ypos = y
     return ypos + shifty
 
-# 複数グラフの表示============================================
-# 1D data のみ可能
+# show graph ============================================
+# only for 1D data 
 def graph_1D(file,value,isDTA):
     if isDTA == True and check_axis(file)==False: return 'All data must have the same XY axis. '
     opt = v_to_opt(value,file,isDTA)
@@ -541,7 +541,7 @@ def graph_1D(file,value,isDTA):
             if opt['size']==(5,7): tlength = xwid*opt['csize'][1]*len(capt[c])
             else: tlength = xwid*opt['csize'][1]*len(capt[c])
             ypos = get_ypos(DL[c],opt,tlength,ywid,xpos,xl)
-        else: # listのとき
+        else: # list
             xpos = xl[0]+xwid*opt['posH'][2]
             if opt['posV'][0] == 'bottom':#upper
                 ypos = yl[1]-opt['csize'][2]*ywid*(c+1)-ywid*0.03
@@ -552,7 +552,7 @@ def graph_1D(file,value,isDTA):
         ax.xaxis.set_major_locator(ticker.MaxNLocator(6,steps=[1,2,2.5,5,10]))
     if opt['gfactor'] == True:
         ax.xaxis.set_major_locator(ticker.MaxNLocator(6))
-    if opt['n'] == 'Normal': plt.title('** Normalized by parameters **')# ↑にシフトするときはy=1.08
+    if opt['n'] == 'Normal': plt.title('** Normalized by parameters **')
     elif opt['n'] == 'Ignore': plt.title('** Normalized by max-min intensity **')
     if opt['gfactor'] == True:
         if opt['g_field'] == 'Top':
@@ -568,7 +568,7 @@ def graph_1D(file,value,isDTA):
     plt.close()
     return None
 #=============================================================
-# 2D dataの表示 (1 file only)#####################################
+# 2D data (1 file only)#####################################
 def graph_2D(file,value,isDTA):
     xfile = file[0]
     opt = v_to_opt(value,file,isDTA)
@@ -616,4 +616,3 @@ def graph_2D(file,value,isDTA):
 #=============================================================
 #=============================================================
  
-#cb = plt.colorbar(ax1, cax = cbaxes) 

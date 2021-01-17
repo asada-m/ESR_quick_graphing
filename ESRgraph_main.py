@@ -1,7 +1,6 @@
 """
-ESR quick graphing ver 1.01 (2021/01/17)
-ESRスペクトルを50秒以内に作図するプログラム
-メインループとウィンドウ操作関係の関数
+ESR quick graphing ver 1.02 (2021/01/17)
+Main loop and functions related to GUI window
 """
 import os
 import webbrowser
@@ -10,7 +9,7 @@ import ESR_graph_module as egm
 from ESR_graph_layout import *
 
 window = sg.Window('ESR quick graphing ver1.0',LAYOUT,finalize=True)
-window['@link'].set_cursor(cursor='hand2') # マウスオーバーで発生するイベント
+window['@link'].set_cursor(cursor='hand2') # mouse-over events
 window['@link2'].set_cursor(cursor='hand2')
 
 graph_OK = False
@@ -24,7 +23,7 @@ save_path = ''
 isDTA=None
 state_all = 256
 
-#Tab関係=====================================================
+# Tab  =====================================================
 def tab_update():
     if file_use == []:
         window['TAB_dat'].update(disabled=False)
@@ -39,7 +38,7 @@ def tab_update():
         window['TAB_dta'].update(disabled=True)
         isDTA = False
     return isDTA
-#オプション表示切替============================================
+# options ============================================
 def update_visible_options():
     global state_all
     state_all = 256
@@ -83,7 +82,7 @@ def update_margin(xpar, ypar, separate):
     window['@stk'].update(value=separate)
     value['@mar_XL'],value['@mar_XR'],value['@mar_Ya'],value['@stk'] = xpar,xpar,ypar,separate
 
-#データ選択===================================================
+# selecte data ===================================================
 def add_files(isDTA):
     if isDTA == True:
         selected, list_A, list_B, allfiles = value['@liall'], file_use, file_use_list, flist_DTADSC
@@ -108,7 +107,7 @@ def remove_files(isDTA):
                     list_B.remove(y)
     return list_A,list_B
 
-#順番入れ替え=================================================
+# change order of data list========================================
 def order_up():
     if isDTA == True:
         selected, list_A, list_B = value['@liuse'], file_use, file_use_list
@@ -138,7 +137,7 @@ def order_down():
         resel = selected
     else: resel = []
     return list_A,list_B,resel
-#作図========================================================
+# graphing ========================================================
 def show_graph():
     global graph_OK
     if isDTA == True:
@@ -165,10 +164,10 @@ def show_graph():
     else: 
         window['@imgraph'].update(data=nograph)
 
-#色保存======================================================
+# fix color order ================================================
 def fixcolor(filelist):
     if len(filelist) <= MAX_DATALIST:
-        y = len(filelist[0]) - 1 # datafileの最後がカラー情報
+        y = len(filelist[0]) - 1 # datafile[-1] corresponding to color information
         usedcolorlist = [xfile[y] for xfile in filelist if xfile[y] in COLORFUL]
         availablecolor = [x for x in COLORFUL if x not in usedcolorlist]
         i = 0
@@ -178,8 +177,8 @@ def fixcolor(filelist):
                 i += 1
     return filelist
 
-#画像を保存==================================================
-def read_filelist(pathname,extension):# フォルダ内のpngを探す
+# save graph file ==================================================
+def read_filelist(pathname,extension):# search png in folder
     listup_files = []
     try:
         files = [f for f in os.listdir(pathname) if os.path.isfile(os.path.join(pathname,f))]
@@ -246,12 +245,12 @@ def save_options(value):
                 win3_active = False
                 break
 
-#メインループ=================================================
+# main loop =================================================
 while True:
     event,value = window.read()
 #    print(state)
     if event in (sg.WIN_CLOSED, 'Exit'): break
-#フォルダ選択=================================================
+# select folder =================================================
     elif event == '@fol_read' and value['@fol_read']:
         flist_DTADSC = egm.folder_select(value['@fol_read'])
         filelist = []
@@ -271,7 +270,7 @@ while True:
                 MAX_DATALIST = 1
             else:
                 window['@liall'].update(select_mode=sg.LISTBOX_SELECT_MODE_EXTENDED)
-                MAX_DATALIST = 20 #とりあえず
+                MAX_DATALIST = 20 #temp
         for x in flist_DTADSC:
             if egm.find_data(x,value) == True: filelist.append(x[0])
     elif event == '@@fol_read' and value['@@fol_read']:
@@ -286,7 +285,7 @@ while True:
         filelist_dat = []
         for x in flist_DAT:
             if egm.find_data_dat(x,value) == True: filelist_dat.append(x[0])
-#データ選択===================================================
+# select data ===================================================
     elif event == ' ↓ add ' and value['@liall'] != []:
         file_use,file_use_list = add_files(True)
         update_enable_options()
@@ -302,7 +301,7 @@ while True:
         file_use_dat,file_use_list_dat = remove_files(False)
     elif event == '@@b_clear':
         file_use_dat, file_use_list_dat = [], []
-#順番入れ替え=================================================
+# change order =================================================
     elif event == ' ↑ ' and value['@liuse'] != []:
         file_use, file_use_list, resel = order_up()
     elif event == ' ↓ ' and value['@liuse'] != []:
@@ -311,7 +310,7 @@ while True:
         file_use_dat, file_use_list_dat, resel = order_up()
     elif event == '@@b_down' and value['@@liuse'] != []:
         file_use_dat, file_use_list_dat, resel = order_down()
-#カラーの保存=================================================
+# color order =================================================
     elif event == '@fixcol':
         for x in range(len(file_use_list)):
             file_use_list[x][6] = COLORFUL[x]
@@ -324,18 +323,18 @@ while True:
     elif event == '@@fogcol':
         for xfile in file_use_list_dat:
             xfile[3] = ''
-#図の作成/保存================================================
+# make and save graph ==========================================
     elif event == 'show':
         show_graph()
     elif event == 'save figure' and graph_OK:
         save_a_data()
-#設定の保存==================================================
+# save settings ==================================================
     elif event == 'save settings':
         save_ini(value)
         sg.popup('Save complete.','Settings are applied after restart application.')
     elif event == '@b_col_reset':
         window['@c_edit'].update(SETTING['DEFAULT']['Color'])
-#オプションの読込と保存=======================================
+# load/save figure options======================================
     elif event == '@b_load_options' and value['@opt_load_name'] != '':
         if update_options(window,value) == False:
             window['@opt_load_name'].update(value='')
@@ -348,15 +347,15 @@ while True:
         window['@opt_load_name'].update(values=['DEFAULT']+FIGURE_OPTIONS.sections())
         window['@ini_figopt'].update(values=['DEFAULT']+FIGURE_OPTIONS.sections())
         window['@opt_load_name'].update(value='')
-#スライダー===================================================
+# slider ===================================================
     elif event == '@b_mar_reset':
         update_margin(0,0,0) if state_all & 8 else update_margin(5,5,0)
-#リンクをブラウザで開く========================================
+# open links in browser ========================================
     elif event == '@link':
         webbrowser.open('https://matplotlib.org/3.3.3/gallery/color/named_colors.html')
     elif event == '@link2':
         webbrowser.open('https://github.com/asada-m/ESR_quick_graphing')
-####### 工事中 ##############################
+####### under construction ##############################
     elif event == '@@mode' and value['@@mode'] != '1D':
         sg.popup('Sorry ! \nOther graph mode is not available yet. ')
         window['@@mode'].update(value='1D')
@@ -367,7 +366,7 @@ while True:
 #        window['@n_convtime'].update(disabled=False)
 #    elif event == '@b_matpl':
 #        sg.popup_scrolled()
-#リスト、図のアップデート====================================
+# update list and figure ====================================
     if event not in (' ↑ ',' ↓ ','@@b_up','@@b_down'): resel = []
     window['@liall'].update(filelist)
     window['@liuse'].update(file_use)
