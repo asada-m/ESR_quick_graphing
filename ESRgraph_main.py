@@ -1,5 +1,5 @@
 """
-ESR quick graphing ver 1.0 (2021/01/17)
+ESR quick graphing ver 1.01 (2021/01/17)
 ESRスペクトルを50秒以内に作図するプログラム
 メインループとウィンドウ操作関係の関数
 """
@@ -355,7 +355,7 @@ while True:
     elif event == '@link':
         webbrowser.open('https://matplotlib.org/3.3.3/gallery/color/named_colors.html')
     elif event == '@link2':
-        webbrowser.open('https://github.com/asada-m/ESR_graphing')
+        webbrowser.open('https://github.com/asada-m/ESR_quick_graphing')
 ####### 工事中 ##############################
     elif event == '@@mode' and value['@@mode'] != '1D':
         sg.popup('Sorry ! \nOther graph mode is not available yet. ')
