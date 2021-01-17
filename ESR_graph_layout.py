@@ -1,5 +1,5 @@
 """
-ESR quick graphing ver 1.0 (2021/01/17)
+ESR quick graphing ver 1.01 (2021/01/17)
 Layout の作成と起動時に処理する関数
 """
 import configparser
@@ -407,7 +407,7 @@ Info_col = sg.Tab(' Info ',k='TAB_info',layout=[
     [sg.Text('Copyright © AsadaMizue 2021 All rights reserved.')],
     [sg.Text('This is an open-source program.\n\
 The source files for the latest version are available from: ')],
-    [sg.Text('https://github.com/asada-m/ESR_graphing',
+    [sg.Text('https://github.com/asada-m/ESR_quick_graphing',
     text_color='blue',enable_events=True,k='@link2')],
     ])
 
