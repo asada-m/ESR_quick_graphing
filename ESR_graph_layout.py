@@ -1,5 +1,5 @@
 """
-ESR quick graphing ver 1.02 (2021/01/17)
+ESR quick graphing ver 1.03 (2021/01/18)
 Layout and functions for initializing
 """
 import configparser
@@ -9,41 +9,46 @@ import PySimpleGUI as sg
 
 # read setting file and create if it is not existing ===========
 SETTING = configparser.ConfigParser()
+SETTING_default = configparser.ConfigParser()
 setfile_name = 'setting.ini'
+SETTING_default['DEFAULT'] = {
+    'Initial_folder' : 'C:/Users',
+    'File_list_row' : 8,
+    'Data_list_row' : 5,
+    'Light_mode' : False,
+    'APP_good_DPI_mode' : False,
+    'Window_Theme' : 'SandyBeach',
+    'Color' : 'black,red,blue,limegreen,darkorange,magenta,deepskyblue,green,gray,blueviolet',
+    'Figure_options' : 'DEFAULT',
+    }
 
-def save_ini_default():
-    SETTING['DEFAULT'] = {
-        'Initial_folder' : 'C:/Users',
-        'File_list_row' : 8,
-        'Data_list_row' : 5,
-        'Light_mode' : False,
-        'APP_good_DPI_mode' : False,
-        'Window_Theme' : 'SandyBeach',
-        'Color' : 'black,red,blue,limegreen,darkorange,magenta,deepskyblue,green,gray,blueviolet',
-        'Figure_options' : 'DEFAULT',
-        }
-    SETTING['USER'] = {}
-    with open('setting.ini','w') as f:
+if os.path.exists(setfile_name):
+    SETTING.read(setfile_name)
+    for x in SETTING_default['DEFAULT'].keys():
+        if x not in SETTING['DEFAULT'].keys():
+            SETTING['DEFAULT'][x] = SETTING_default['DEFAULT'][x]
+    if 'USER' not in SETTING.sections():
+        SETTING['USER'] = {}
+    with open(setfile_name,'w') as f:
         SETTING.write(f)
-
-if not os.path.exists(setfile_name):
-    save_ini_default()
-SETTING.read(setfile_name)
-if 'USER' not in SETTING.sections():
-    save_ini_default()
+else:
+    SETTING['DEFAULT'] = SETTING_default['DEFAULT']
+    SETTING['USER'] = {}
+    with open(setfile_name,'w') as f:
+        SETTING.write(f)
+    SETTING.read(setfile_name)
 
 # figure parameters
 FIGURE_OPTIONS = configparser.ConfigParser()
+FIGURE_OPTIONS_default = configparser.ConfigParser()
 figfile_name = 'figure_options.ini'
 fo = {}
-
-def save_ini_options():
-    FIGURE_OPTIONS['DEFAULT'] = {
+FIGURE_OPTIONS_default['DEFAULT'] = {
         'Figure_landscape' : True,
         'Figure_portrait' : False,
-        'Figure_size_x' : 7,
-        'Figure_size_y' : 5,
-        'Figure_dpi' : 100,
+        'Figure_size_x' : 7.0,
+        'Figure_size_y' : 5.0,
+        'Figure_dpi' : 100.0,
         'Figure_tight' : False,
         'Color' : True,
         'Normalize_MWpower' : True,
@@ -73,12 +78,19 @@ def save_ini_options():
         'Axis_style' : 'Bottom: MagField , Top: g-factor',
         'Imaginary' : False,
         }
-    with open(figfile_name, mode='w') as f:
-        FIGURE_OPTIONS.write(f)
 
-if not os.path.exists(figfile_name):
-    save_ini_options()
-FIGURE_OPTIONS.read(figfile_name)
+if os.path.exists(figfile_name):
+    FIGURE_OPTIONS.read(figfile_name)
+    for x in FIGURE_OPTIONS_default['DEFAULT'].keys():
+        if x not in FIGURE_OPTIONS['DEFAULT'].keys():
+            FIGURE_OPTIONS['DEFAULT'][x] = FIGURE_OPTIONS_default['DEFAULT'][x]
+    with open(figfile_name,'w') as f:
+        FIGURE_OPTIONS.write(f)
+else:
+    FIGURE_OPTIONS['DEFAULT'] = FIGURE_OPTIONS_default['DEFAULT']
+    with open(figfile_name,'w') as f:
+        FIGURE_OPTIONS.write(f)
+    FIGURE_OPTIONS.read(figfile_name)
 
 # getting values ==================================================
 ini_fo = SETTING.get('USER','Initial_folder')
@@ -153,15 +165,15 @@ def update_options(window,value):
 
 # save settings in file ===========================================
 def save_ini(value):
-    SETTING['USER']['Initial_folder'] = str(value['@s_folder'])
+    SETTING['USER']['Initial_folder'] = value['@s_folder']
     SETTING['USER']['File_list_row'] = str(value['@s_filerow'])
     SETTING['USER']['Data_list_row'] = str(value['@s_datarow'])
     SETTING['USER']['Light_mode'] = str(value['@s_light'])
     SETTING['USER']['APP_good_DPI_mode'] = str(value['@s_appDPI'])
     if value['@s_theme'] in sg.theme_list():
-        SETTING['USER']['Window_Theme'] = str(value['@s_theme'])
-    else: SETTING['USER']['Window_Theme'] = str(THEME)
-    SETTING['USER']['Color'] = str(value['@c_edit'])
+        SETTING['USER']['Window_Theme'] = value['@s_theme']
+    else: SETTING['USER']['Window_Theme'] = THEME
+    SETTING['USER']['Color'] = value['@c_edit']
     SETTING['USER']['Figure_options'] = value['@ini_figopt']########
     with open('setting.ini', mode='w') as f:
         SETTING.write(f)
@@ -186,9 +198,9 @@ def save_options_pop(name,value):
     FIGURE_OPTIONS[name]['Normalize_Gain'] = str(value['@n_gain'])
     FIGURE_OPTIONS[name]['Normalize_CT'] = str(value['@n_convtime'])
     FIGURE_OPTIONS[name]['Normalize_Scans'] = str(value['@n_scans'])
-    if value['@same'] == True: FIGURE_OPTIONS[name]['DTA_Normalize'] = str(2)
-    elif value['@normal'] == True: FIGURE_OPTIONS[name]['DTA_Normalize'] = str(1)
-    else: FIGURE_OPTIONS[name]['DTA_Normalize'] = str(0)
+    if value['@same'] == True: FIGURE_OPTIONS[name]['DTA_Normalize'] = '2'
+    elif value['@normal'] == True: FIGURE_OPTIONS[name]['DTA_Normalize'] = '1'
+    else: FIGURE_OPTIONS[name]['DTA_Normalize'] = '0'
     FIGURE_OPTIONS[name]['DTA_noYscale'] = str(value['@noysc'])
     FIGURE_OPTIONS[name]['DTA_Grid'] = str(value['@grid'])
     FIGURE_OPTIONS[name]['DTA_fixcolor'] = str(value['@fixcol'])
@@ -196,7 +208,7 @@ def save_options_pop(name,value):
     FIGURE_OPTIONS[name]['DTA_Csize'] = str(value['@csize'])
     FIGURE_OPTIONS[name]['DTA_Cpos1'] = str(value['@ctype'])
     FIGURE_OPTIONS[name]['DTA_Cpos2'] = str(value['@cpos'])
-    FIGURE_OPTIONS[name]['dat_Normalize'] = str(1) if value['@@same'] == True else str(0)
+    FIGURE_OPTIONS[name]['dat_Normalize'] = '1' if value['@@same'] == True else '0'
     FIGURE_OPTIONS[name]['dat_noYscale'] = str(value['@@noysc'])
     FIGURE_OPTIONS[name]['dat_Grid'] = str(value['@@grid'])
     FIGURE_OPTIONS[name]['dat_fixcolor'] = str(value['@@fixcol'])
@@ -282,7 +294,7 @@ DTA_col = sg.Tab(' DTA ',k='TAB_dta',layout=[[
     [sg.InputText('1;2;3;(manual captions)',k='@capt_my',size=(I_yoko+18,1))],
     [sg.Text('position'),sg.Combo(['List','Spectrum'],k='@ctype',default_value=fo['@ctype'],enable_events=True),
     sg.Combo(['Top-Left','Top-Right','Bottom-Left','Bottom-Right'],k='@cpos',default_value=fo['@cpos'],enable_events=True),
-#    sg.Button('memo',k='@b_memo',button_color=white_bcolor),
+    sg.Checkbox('align',k='@c_align'),
     ],
 #    sg.Frame('',relief='groove',pad=(0,0),size=(15,1),layout=[
 #    [sg.Text('Slice:',k='@2D_text',visible=True),
@@ -322,7 +334,7 @@ DAT_col = sg.Tab(' dat ',k='TAB_dat',layout=[[
     ])
 
 Opt_col = sg.Tab(' Option ',k='TAB_opt',layout=[
-    [sg.Frame(' Normalize ',layout=[
+    [sg.Frame(' Normalize (for DTA data)',layout=[
     [sg.Text('Caution: EMX normalizes spectra automatically.')],
 #        [sg.Radio('EMX',"NOR",k='@n_emx',enable_events=True),
 #        sg.Radio('Other (E500, E580, E680, etc.)',"NOR",k='@n_other',default=True,enable_events=True)],
@@ -332,7 +344,7 @@ Opt_col = sg.Tab(' Option ',k='TAB_opt',layout=[
         sg.Checkbox('Number of Scans',k='@n_scans',default=fo['@n_scans'],pad=(5,0),enable_events=True),],
         [sg.Text('Intensity = Intensity\n / Scans / 10^(Gain /20) / ConvTime[s] / Power[W] ^2',k='@n_text')],
     ])],
-    [sg.Frame(' g-factor (for DTA data only)',layout=[
+    [sg.Frame(' g-factor (for DTA data)',layout=[
         [sg.Text('Field Modification:'),sg.InputText(fo['@g_mod'],k='@g_mod',size=(5,1),enable_events=True),sg.Text('G')],
         [sg.Text('g-factor \n= MWfreq[GHz] / (MagneticField + Modify[G]) *714.418')],
         [sg.Text('X axis style:'),
@@ -402,7 +414,7 @@ How_col = sg.Tab(' How to ',k='TAB_how',layout=[
     ])
 
 Info_col = sg.Tab(' Info ',k='TAB_info',layout=[
-    [sg.Text('ESR quick graphing  ver.1.02 ',font=('default 16 bold'))],
+    [sg.Text('ESR quick graphing  ver.1.03 ',font=('default 16 bold'))],
     [sg.Text('Copyright © AsadaMizue 2021 All rights reserved.')],
     [sg.Text('This is an open-source program.\n\
 The source files for the latest version are available from: ')],

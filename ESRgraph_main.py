@@ -1,5 +1,5 @@
 """
-ESR quick graphing ver 1.02 (2021/01/17)
+ESR quick graphing ver 1.03 (2021/01/18)
 Main loop and functions related to GUI window
 """
 import os
@@ -8,12 +8,11 @@ import PySimpleGUI as sg
 import ESR_graph_module as egm
 from ESR_graph_layout import *
 
-window = sg.Window('ESR quick graphing ver1.0',LAYOUT,finalize=True)
+window = sg.Window('ESR quick graphing ver1.03',LAYOUT,finalize=True)
 window['@link'].set_cursor(cursor='hand2') # mouse-over events
 window['@link2'].set_cursor(cursor='hand2')
 
 graph_OK = False
-save_OK = False
 win2_active, win3_active = False, False
 filelist, file_use, file_use_list = [],[],[]
 filelist_dat, file_use_dat, file_use_list_dat = [],[],[]

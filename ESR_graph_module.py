@@ -1,5 +1,5 @@
 """
-ESR quick graphing ver 1.02 (2021/01/17)
+ESR quick graphing ver 1.03 (2021/01/18)
 functions for loading data and graphing
 """
 import os
@@ -14,18 +14,19 @@ def __read_DSC_file(DSC_filename_fullpath):
     is_state = 256 # all:256 Complex:64 Mani:32 Pulse:16 2D:8 END:4 Time:2 fs:1 
     with open(DSC_filename_fullpath) as f:
         allLines = f.read().splitlines()
-    for x in range(len(allLines)):
+    for x in range((DSClength := len(allLines))):
         line = allLines[x]
         if line == '' : continue
-        if line[-1]=='\\' and x < len(allLines):
+        if line[-1]=='\\' and x < DSClength:
             allLines[x+1] = line[0:-1]+allLines[x+1]
             allLines[x]=''
             continue
 #                line.replace(line[-1],'')
         if len(line)>1: line[-2:].replace('\\n','\n')
-        Key = line.split(None,1)[0]
-        if len(line.split(None,1)) == 1: Value = ''
-        if len(line.split(None,1)) > 1: Value = line.split(None,1)[1]
+        Key = (linesplit := line.split(None,1))[0]
+        splitsize = len(linesplit)
+        if splitsize == 1: Value = ''
+        if splitsize > 1:  Value = linesplit[1]
         if Key == '': continue
         if Key[0].isalpha() == 0:
             if Key == '#MHL':
@@ -35,8 +36,10 @@ def __read_DSC_file(DSC_filename_fullpath):
         Value = Value.strip()
         Value = Value.strip("'")
         param[Key]=Value
-    if ('XNAM' in param and param['XNAM'] == 'Field') or ('YNAM' in param and param['YNAM'] == 'Field'): is_state += 1
-    if ('XNAM' in param and param['XNAM'] == 'Time') or ('YNAM' in param and param['YNAM'] == 'Time') or ('XUNI' in param and param['XUNI'] == 'ns'): is_state += 2
+    for x in ('XNAM','XUNI','IRNAM','IRUNI'):
+        if x not in param: param[x] = ''
+    if param['XNAM'] == 'Field' or ('YNAM' in param and param['YNAM'] == 'Field'): is_state += 1
+    if param['XNAM'] == 'Time' or ('YNAM' in param and param['YNAM'] == 'Time') or param['XUNI'] == 'ns': is_state += 2
     if 'XNAM' in param and param['XNAM'] == 'RF': is_state += 4
     if ('XPTS' in param and float(param['XPTS']) > 1) and ('YPTS' in param and float(param['YPTS']) > 1): is_state += 8
     if 'EXPT' in param and param['EXPT'] == 'PLS': is_state += 16
@@ -247,8 +250,9 @@ def load_dat(file_info):
             d = allLines[i].split(',')
         else:
             d = allLines[i].split()
-        if len(d) == 0: return None
-        elif len(d) == 1:
+        len_d = len(d)
+        if len_d == 0: return None
+        elif len_d == 1:
             abs_x.append(i)
             data_r.append(float(d[0]))
         else:
@@ -260,12 +264,13 @@ def load_dat(file_info):
 #=============================================================
 # are data axes the same?  ==================================
 def check_axis(flist):
-    if   len(flist) == 0: return False
-    elif len(flist) == 1: return True
-    elif len(flist) > 1:
-        if 'XUNI' in flist[0][3]: ch_x = flist[0][3]['XUNI']
+    flistlength = len(flist)
+    if   flistlength == 0: return False
+    elif flistlength == 1: return True
+    elif flistlength > 1:
+        ch_x = flist[0][3]['XUNI']
         for x in flist:
-            if 'XUNI' in x[3] and x[3]['XUNI'] != ch_x: return False
+            if x[3]['XUNI'] != ch_x: return False
         if 'YUNI' in flist[0][3]:
             ch_y = flist[0][3]['YUNI']
             for x in flist:
@@ -299,7 +304,7 @@ def v_to_opt(value,file,isDTA):
         try: opt['dpi'] = float(value['size_dpi'])
         except: opt['dpi'] = 100.0
     else: opt['size'], opt['dpi'] = (7.0,5.0), 100.0
-    opt['grid'] = True if value['@grid'] == True else False
+    opt['grid'] = True if value[a+'@grid'] == True else False
     opt['t'] = True if value['@tight'] == True else False
     opt['mar_xr'] = -value['@mar_XR']/100
     opt['mar_xl'] = -value['@mar_XL']/100
@@ -337,12 +342,8 @@ def v_to_opt(value,file,isDTA):
         else: opt['capt'] = 'None'
         if 'YNAM' in file[0][3]:
             opt['ylabel'] = f"{file[0][3]['YNAM']}"
-        elif 'IRNAM' in file[0][3]:
-            opt['ylabel'] = f"{file[0][3]['IRNAM']}"
-        else: opt['ylabel'] = ''
-        if 'XNAM' in file[0][3] and 'XUNI' in file[0][3]:
-            opt['xlabel'] = f"{file[0][3]['XNAM']} ({file[0][3]['XUNI']})"
-        else: opt['xlabel'] = ''
+        else: opt['ylabel'] = f"{file[0][3]['IRNAM']}"
+        opt['xlabel'] = f"{file[0][3]['XNAM']} ({file[0][3]['XUNI']})"
         if file[0][5] & 1:
             opt['gfactor'] = True if value['@g_adjust'] == True else False
             opt['g_mod'] = float(value['@g_mod'])
@@ -363,7 +364,7 @@ def v_to_opt(value,file,isDTA):
             opt['capt'] = 'My'
             opt['capt_my'] = value['@@capt_my']
         else: opt['capt'] = 'None'
-        opt['column'] = int(value['@@column'])
+#        opt['column'] = int(value['@@column'])
         opt['gfactor'] = False
         opt['g_axis'], opt['g_field'] = None,None
     return opt
@@ -404,7 +405,7 @@ def Normalize(dataR,param,opt,isDTA=True):
         dataR = dataR / N / G / CT / (P*P)
     elif isDTA and opt['n'] == 'Ignore': # set max/ min = 1,-1 or 1,0
         if 'EXPT' in param and param['EXPT'] == 'CW':
-            if 'XNAM' in param and param['XNAM'] == 'Field':
+            if param['XNAM'] == 'Field':
                 ysize, base = 2, -1
             else: ysize, base = 1, 0
         else: ysize, base = 1, 0
@@ -495,6 +496,7 @@ def get_ypos(DLc,opt,tlength,ywid,xpos,xl):
 def graph_1D(file,value,isDTA):
     if isDTA == True and check_axis(file)==False: return 'All data must have the same XY axis. '
     opt = v_to_opt(value,file,isDTA)
+    label_size = opt['csize'][0]
     try:
         DL, err = make_data_list(file,opt,isDTA)
         if err: return err
@@ -503,7 +505,7 @@ def graph_1D(file,value,isDTA):
     if opt['gfactor'] == True and opt['g_axis'] == 'Top':
         fig, axf = plt.subplots(figsize=opt['size'],dpi=opt['dpi'])
         axf.set_ylabel(opt['ylabel'],fontsize=opt['ax_size'])
-        axf.tick_params(labelsize=opt['csize'][0])
+        axf.tick_params(labelsize=label_size)
         axf.xaxis.set_major_locator(ticker.MaxNLocator(6,steps=[1,2,2.5,5,10]))
         if opt['grid']==True: axf.grid(axis='y')
         ax = axf.twiny()
@@ -525,20 +527,21 @@ def graph_1D(file,value,isDTA):
     for c in range(cnt):
         ax.plot(DL[c][0], DL[c][1], color=opt['c'][c])
     xl, yl = ax.get_xlim(), ax.get_ylim()
+    xwid, ywid= xl[1]-xl[0], yl[1]-yl[0]
     if opt['gfactor'] == True:
         ax.set_xlabel('g-factor')
-        xl_l = xl[1]-(xl[1]-xl[0])*opt['mar_xl']
-        xl_r = xl[0]+(xl[1]-xl[0])*opt['mar_xr']
+        xl_l = xl[1]- xwid *opt['mar_xl']
+        xl_r = xl[0]+ xwid *opt['mar_xr']
     else:
-        xl_l = xl[0]+(xl[1]-xl[0])*opt['mar_xl']
-        xl_r = xl[1]-(xl[1]-xl[0])*opt['mar_xr']
+        xl_l = xl[0]+ xwid *opt['mar_xl']
+        xl_r = xl[1]- xwid *opt['mar_xr']
     ax.set_xlim(xl_l,xl_r)
     xl, yl = ax.get_xlim(), ax.get_ylim()
     xwid, ywid= xl[1]-xl[0], yl[1]-yl[0]
     for c in range(cnt):
         if opt['ctyp'] == 'spectrum':
             xpos = get_xpos(xl,xwid,opt,DL[c])
-            if opt['size']==(5,7): tlength = xwid*opt['csize'][1]*len(capt[c])
+            if opt['size'][0] < 5.5: tlength = xwid*opt['csize'][1]*len(capt[c])
             else: tlength = xwid*opt['csize'][1]*len(capt[c])
             ypos = get_ypos(DL[c],opt,tlength,ywid,xpos,xl)
         else: # list
@@ -547,8 +550,8 @@ def graph_1D(file,value,isDTA):
                 ypos = yl[1]-opt['csize'][2]*ywid*(c+1)-ywid*0.03
             else:#down
                 ypos = yl[0]+opt['csize'][2]*ywid*(cnt-c)+ywid*0.03
-        ax.text(xpos, ypos,capt[c], ha=opt['posH'][0],va=opt['posV'][0],color=opt['c'][c],fontsize=opt['csize'][0])
-    if opt['size'][1] < 5.5:
+        ax.text(xpos, ypos,capt[c], ha=opt['posH'][0],va=opt['posV'][0],color=opt['c'][c],fontsize=label_size)
+    if opt['size'][0] < 5.5:
         ax.xaxis.set_major_locator(ticker.MaxNLocator(6,steps=[1,2,2.5,5,10]))
     if opt['gfactor'] == True:
         ax.xaxis.set_major_locator(ticker.MaxNLocator(6))
@@ -558,8 +561,8 @@ def graph_1D(file,value,isDTA):
         if opt['g_field'] == 'Top':
             axf = ax.twiny()
         if opt['g_field'] in ('Top','Bottom'):
-            axf.set_xlabel(opt['xlabel'],fontsize=opt['csize'][0])
-            axf.tick_params(labelsize=opt['csize'][0])
+            axf.set_xlabel(opt['xlabel'],fontsize=label_size)
+            axf.tick_params(labelsize=label_size)
             mw = float(file[0][3]['MWFQ'])/1e9*714.418
             fl_left, fl_right = mw/xl[0], mw/xl[1]
             axf.set_xlim([fl_left,fl_right])
@@ -572,6 +575,7 @@ def graph_1D(file,value,isDTA):
 def graph_2D(file,value,isDTA):
     xfile = file[0]
     opt = v_to_opt(value,file,isDTA)
+    text_size = opt['csize'][0]
     if isDTA:
         abs_x, abs_y, Data_matrix, err_text, is_err = load_BES3T(xfile,opt)
     if is_err: return err
@@ -582,15 +586,15 @@ def graph_2D(file,value,isDTA):
     xl_r = xl[1]-(xl[1]-xl[0])*opt['mar_xr']
     ax.set_xlim(xl_l,xl_r)
     ax.set_ymargin(opt['mar_y'])
-    ax.tick_params(labelsize=opt['csize'][0])
-    plt.xlabel('',fontsize=opt['csize'][0])
-    plt.ylabel('',fontsize=opt['csize'][0])
+    ax.tick_params(labelsize=text_size)
+    plt.xlabel('',fontsize=text_size)
+    plt.ylabel('',fontsize=text_size)
     if opt['gfactor']==True:
         if 'Field' in opt['xlabel']:
             axg = ax.twiny()
             xl = ax.get_xlim()
-            axg.set_xlabel('g-factor',fontsize=opt['csize'][0])
-            axg.tick_params(labelsize=opt['csize'][0])
+            axg.set_xlabel('g-factor',fontsize=text_size)
+            axg.tick_params(labelsize=text_size)
             mw = float(xfile[3]['MWFQ'])/1e9*714.418
             fl_min, fl_max = mw/xl[0], mw/xl[1]
             axg.set_xlim([fl_min,fl_max])
@@ -598,8 +602,8 @@ def graph_2D(file,value,isDTA):
         if 'Field' in opt['ylabel']:
             axg = ax.twinx()
             yl = ax.get_ylim()
-            axg.set_ylabel('g-factor',fontsize=opt['csize'][0])
-            axg.tick_params(labelsize=opt['csize'][0])
+            axg.set_ylabel('g-factor',fontsize=text_size)
+            axg.tick_params(labelsize=text_size)
             mw = float(xfile[3]['MWFQ'])/1e9*714.418
             fl_min, fl_max = mw/yl[0], mw/yl[1]
             axg.set_ylim([fl_min,fl_max])
@@ -614,5 +618,3 @@ def graph_2D(file,value,isDTA):
     plt.close()
     return None
 #=============================================================
-#=============================================================
- 
