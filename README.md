@@ -27,7 +27,7 @@ python -m pip install PySimpleGUI
 
 python -m pip install PyInstaller  
 pip install matplotlib==3.2.2  
-pyinstaller -wF ESRgraph_main.py  
+pyinstaller -wF ESR_graph_main.py  
 
 ・exeファイルはdistフォルダ内に作成されます。  
 ・exeは単体で動作できますが、同じフォルダにいくつかファイルを出力するので、  
