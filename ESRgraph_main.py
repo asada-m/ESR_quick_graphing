@@ -1,5 +1,5 @@
 """
-ESR quick graphing ver 1.03 (2021/01/18)
+ESR quick graphing ver 1.04 (2021/01/19)
 Main loop and functions related to GUI window
 """
 import os
@@ -8,7 +8,7 @@ import PySimpleGUI as sg
 import ESR_graph_module as egm
 from ESR_graph_layout import *
 
-window = sg.Window('ESR quick graphing ver1.03',LAYOUT,finalize=True)
+window = sg.Window('ESR quick graphing ver1.04',LAYOUT,finalize=True)
 window['@link'].set_cursor(cursor='hand2') # mouse-over events
 window['@link2'].set_cursor(cursor='hand2')
 
@@ -20,7 +20,7 @@ flist_DTADSC, flist_DAT = [],[]
 resel = []
 save_path = ''
 isDTA=None
-state_all = 256
+state_all, state_staged = 0,0
 
 # Tab  =====================================================
 def tab_update():
@@ -38,19 +38,9 @@ def tab_update():
         isDTA = False
     return isDTA
 # options ============================================
-def update_visible_options():
-    global state_all
-    state_all = 256
-    # all:256 Complex:64 Mani:32 Pulse:16 2D:8 END:4 Time:2 fs:1 
-    if flist_DTADSC and flist_DTADSC[0]:
-        for xfile in flist_DTADSC:
-            for y in (1,2,4,8,16,32,64):
-                if xfile[5] & y and not state_all & y: state_all += y
-#    if state_all & 64: window['@imag'].update(visible=True)
-#    else: window['@imag'].update(visible=False)
-
 def update_enable_options():
-    state_staged = 256
+    global state_staged
+    state_staged = 0
     if file_use_list != []:
         for xfile in file_use_list:
             for y in (1,2,4,8,16,32,64):
@@ -257,7 +247,6 @@ while True:
         for x in flist_DTADSC:
             if egm.find_data(x,value) == True: filelist.append(x[0])
         window['@fol_browse'].InitialFolder = None
-        update_visible_options()
     elif event in ('@find_d','@find_a','@find_m'):
         if flist_DTADSC and not flist_DTADSC[0]: continue
         filelist = []
@@ -265,7 +254,6 @@ while True:
             file_use, file_use_list = [], []
             if value['@find_d'] == '2D':
                 window['@liall'].update(select_mode=sg.LISTBOX_SELECT_MODE_SINGLE)
-                update_margin(0,0,0)
                 MAX_DATALIST = 1
             else:
                 window['@liall'].update(select_mode=sg.LISTBOX_SELECT_MODE_EXTENDED)
@@ -288,6 +276,7 @@ while True:
     elif event == ' ↓ add ' and value['@liall'] != []:
         file_use,file_use_list = add_files(True)
         update_enable_options()
+        if state_staged & 8: update_margin(0,0,0)
     elif event == ' ↑ remove ' and value['@liuse'] != []:
         file_use,file_use_list = remove_files(True)
         update_enable_options()
@@ -348,7 +337,7 @@ while True:
         window['@opt_load_name'].update(value='')
 # slider ===================================================
     elif event == '@b_mar_reset':
-        update_margin(0,0,0) if state_all & 8 else update_margin(5,5,0)
+        update_margin(0,0,0) if state_staged & 8 else update_margin(5,5,0)
 # open links in browser ========================================
     elif event == '@link':
         webbrowser.open('https://matplotlib.org/3.3.3/gallery/color/named_colors.html')

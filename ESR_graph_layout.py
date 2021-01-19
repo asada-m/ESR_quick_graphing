@@ -1,5 +1,5 @@
 """
-ESR quick graphing ver 1.03 (2021/01/18)
+ESR quick graphing ver 1.04 (2021/01/19)
 Layout and functions for initializing
 """
 import configparser
@@ -294,7 +294,7 @@ DTA_col = sg.Tab(' DTA ',k='TAB_dta',layout=[[
     [sg.InputText('1;2;3;(manual captions)',k='@capt_my',size=(I_yoko+18,1))],
     [sg.Text('position'),sg.Combo(['List','Spectrum'],k='@ctype',default_value=fo['@ctype'],enable_events=True),
     sg.Combo(['Top-Left','Top-Right','Bottom-Left','Bottom-Right'],k='@cpos',default_value=fo['@cpos'],enable_events=True),
-    sg.Checkbox('align',k='@c_align'),
+    sg.Checkbox('align',k='@c_align',visible=False),
     ],
 #    sg.Frame('',relief='groove',pad=(0,0),size=(15,1),layout=[
 #    [sg.Text('Slice:',k='@2D_text',visible=True),
@@ -414,7 +414,7 @@ How_col = sg.Tab(' How to ',k='TAB_how',layout=[
     ])
 
 Info_col = sg.Tab(' Info ',k='TAB_info',layout=[
-    [sg.Text('ESR quick graphing  ver.1.03 ',font=('default 16 bold'))],
+    [sg.Text('ESR quick graphing  ver.1.04 ',font=('default 16 bold'))],
     [sg.Text('Copyright © AsadaMizue 2021 All rights reserved.')],
     [sg.Text('This is an open-source program.\n\
 The source files for the latest version are available from: ')],

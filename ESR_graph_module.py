@@ -1,5 +1,5 @@
 """
-ESR quick graphing ver 1.03 (2021/01/18)
+ESR quick graphing ver 1.04 (2021/01/19)
 functions for loading data and graphing
 """
 import os
