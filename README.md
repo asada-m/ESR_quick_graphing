@@ -2,7 +2,7 @@
 Quick graphing for ESR data  
 
 ESRスペクトルを50秒以内に作図するプログラム  
-ver.1.03 (2021/01/18)
+ver.1.04 (2021/01/19)
 
 ・BrukerのESRデータを素早く作図するのに特化したプログラムです。  
 ・Matlab easyspin の eprload 関数を参考に作成しています。
@@ -22,9 +22,11 @@ python -m pip install PySimpleGUI
 
 ３．ESRgraph_main.py　を実行すると起動します。  
 ４．exeファイルを作成したい場合は、PyInstallerを別途使ってパッケージしてください。  
-モジュールを全て含めるため、実行ファイルは数十MBくらいのサイズになります。  
+(matplotlibのバージョンが新しいとexe化に失敗してしまうので、3.2.2を使ってください)  
+実行ファイルは数十MBくらいのサイズになります。  
 
 python -m pip install PyInstaller  
+pip install matplotlib==3.2.2  
 pyinstaller -wF ESRgraph_main.py  
 
 ・exeファイルはdistフォルダ内に作成されます。  
@@ -54,6 +56,7 @@ ver.0.3-0.5   - カンブリア爆発
 ver.1.0 (2021/01/17)   - 公開版 Imaginary以外のDTAデータはだいたい作図可能  
 ver.1.02 (2021/01/17)   - link修正、ソースファイルの日本語でエラーが出る？？のでASCIIに変更  
 ver.1.03 (2021/01/18)   - datが表示できなかったのを修正
+ver.1.04 (2021/01/19)   - exe化が全然うまくいってなかったのを修正
 
 ### ■使用ソフトウェア
 Python  
