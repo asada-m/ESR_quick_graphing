@@ -1,8 +1,10 @@
 """
-ESR quick graphing ver 1.04 (2021/01/19)
+ESR quick graphing ver 1.05 (2021/01/26)
 functions for loading data and graphing
 """
+import math
 import os
+import sys
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import ticker, cm
@@ -104,7 +106,7 @@ def find_data_dat(xfile,value):
     return True
 #=============================================================
 # load DTA for graphs====================================
-def load_BES3T(file_info,opt):
+def __load_BES3T(file_info,opt):
 # file_info: ['file_base', 'file_base.DTA', 'file_base.DSC', param{dictionary}, 'C:/user/...','datatype']
     folder_path = file_info[4]
     fn_DTA = folder_path +'/'+ file_info[1]
@@ -203,8 +205,8 @@ def load_BES3T(file_info,opt):
         GN = AxisNames[i]+'NAM'
         if opt['gfactor']==True and GN in param and param[GN]=='Field':
             try:
-                for j in range(len(abscissa[i])):
-                    jiba = abscissa[i][j] + opt['g_mod']
+                for j, x in enumerate(abscissa[i]):
+                    jiba = x + opt['g_mod']
                     abscissa[i][j] = jiba # save MODIFIED field 
                     abs_g[i].append(float(param['MWFQ']) / jiba * 714.418 /1e+9)
                 if i==0: xg=True
@@ -222,7 +224,10 @@ def load_BES3T(file_info,opt):
     # 2D
     elif Dimensions[2] ==1 and Dimensions[1] >1:
         Data_matrix = Data_matrix.reshape(Dimensions[1],Dimensions[0])
-        Data_matrix = Data_matrix.real
+        if opt['imag']:
+            Data_matrix = Data_matrix.imag
+        else:
+            Data_matrix = Data_matrix.real
 #        if xg == True:
 #            abs_x = abs_g[0]
 #        else: abs_x = abscissa[0]
@@ -237,33 +242,29 @@ def load_BES3T(file_info,opt):
 # Data_matrix = array[1D or 2D, real or complex]
 #=============================================================
 # load dat data for graph ====================================
-def load_dat(file_info):
+def __load_dat(file_info,opt):
     fullname = file_info[2] + '/' + file_info[1]
-    try:
-        with open(fullname, 'r') as f:
-            allLines = f.read().splitlines()
+    try: allLines = np.loadtxt(fullname)
     except:
-        return None, None, f'{file_info[1]} cannot be read.\n'
-    abs_x, data_r = [],[]
-    for i in range(len(allLines)):
-        if ',' in allLines[0]:
-            d = allLines[i].split(',')
+        try: allLines = np.loadtxt(fullname, delimiter = ',')
+        except: return None, None, f'{file_info[1]} cannot be read.\n'
+    if len(np.shape(allLines)) == 1:# no x axis --> add index
+        L = len(allLines)
+        abs_x = np.linspace(1,L,L)
+        data_r = allLines
+    else:
+        abs_x = allLines[:,0]
+        if opt['column'] == 1:
+            data_r = allLines[:,1]
+        elif opt['column'] < (col_size := len(allLines[0])) + 1:
+            data_r = allLines.T[1:opt['column']+1]
         else:
-            d = allLines[i].split()
-        len_d = len(d)
-        if len_d == 0: return None
-        elif len_d == 1:
-            abs_x.append(i)
-            data_r.append(float(d[0]))
-        else:
-            abs_x.append(float(d[0]))
-#            for j in range(1,1+min([len(d),opt['column']])):
-            data_r.append(float(d[1]))##########
-    return np.array(abs_x), np.array(data_r), None
+            data_r = allLines.T[1:col_size]
+    return abs_x, data_r, None
 #=============================================================
 #=============================================================
 # are data axes the same?  ==================================
-def check_axis(flist):
+def __check_axis(flist):
     flistlength = len(flist)
     if   flistlength == 0: return False
     elif flistlength == 1: return True
@@ -280,20 +281,23 @@ def check_axis(flist):
                 if 'YUNI' in x[3]: return False
         return True
 # set option values from values ==================================
-def v_to_opt(value,file,isDTA):
+def __v_to_opt(value,file,isDTA):
     opt = {}
+    num_file = len(file)
     y = 6 if isDTA == True else 3
     a = '' if isDTA == True else '@'
     if value['@c_black'] == True:
-        opt['c'] = ['black'] * len(file)
+        opt['c'] = ['black'] * num_file
+        opt['ls'] = ['-', '--', ':', '-,'] * 5
     else:
         opt['c'] = []
-        for x in range(len(file)):
-            if file[x][y] != '':############################ 2D error
-                opt['c'].append(file[x][y])
+        for i, xfile in enumerate(file):
+            if xfile[y] != '':############################ 2D error
+                opt['c'].append(xfile[y])
             else:
-                try: opt['c'].append(COLORFUL[x])
+                try: opt['c'].append(COLORFUL[i])
                 except: opt['c'].append('black')
+        opt['ls'] = ['-'] * num_file
     if value['@size_tate'] == True:
         opt['size'], opt['dpi'] = (5.0,7.0), 100.0
     elif value['@size_yoko'] == True:
@@ -308,38 +312,34 @@ def v_to_opt(value,file,isDTA):
     opt['t'] = True if value['@tight'] == True else False
     opt['mar_xr'] = -value['@mar_XR']/100
     opt['mar_xl'] = -value['@mar_XL']/100
-    opt['mar_y'] = value['@mar_Ya']/100
+#    opt['mar_y'] = value['@mar_Ya']/100
+    opt['mar_yh'] = value['@mar_YH']/100
+    opt['mar_yl'] = value['@mar_YL']/100
     opt['y'] = False if value[a+'@noysc'] == True else True
     opt['stack'] = value['@stk']/100
-    if 'Bottom' in value[a+'@cpos']: opt['posV'] = ['top',-1]
-    else: opt['posV'] = ['bottom',1]
+#    if 'Bottom' in value[a+'@cpos']: opt['posV'] = ['top',-1,0]
+    if 'Lower' in value[a+'@cpos'] or 'Bottom' in value[a+'@cpos']: opt['posV'] = ['top',-1,0]
+    else: opt['posV'] = ['bottom',1,-1]
     if 'Right' in value[a+'@cpos']: opt['posH'] = ['right',-1,0.98,-1]
     else: opt['posH'] = ['left',1,0.02,0]
     if value[a+'@ctype'] == 'Spectrum': opt['ctyp'] = 'spectrum'
     else: opt['ctyp'] = 'list'
-    if   value[a+'@csize'] == 'large': opt['csize'] = [18.0,0.015,0.08]
-    elif value[a+'@csize'] == 'medium': opt['csize'] = [14.0,0.015,0.06]
-    else: opt['csize'] = [10.0,0.015,0.04]
+    if   value[a+'@csize'] == 'large': opt['csize'] = 18.0
+    elif value[a+'@csize'] == 'medium': opt['csize'] = 14.0
+    else: opt['csize'] = 10.0
     opt['ax_size'] = 14.0 # temp
     
     if isDTA == True:
         if   value['@normal'] == True:
             opt['n'] = 'Normal'
-            opt['nn'] = 32
-            if value['@n_power'] == True: opt['nn'] += 1
-            if value['@n_gain'] == True: opt['nn'] += 2
-            if value['@n_convtime'] == True: opt['nn'] += 4
-            if value['@n_scans'] == True: opt['nn'] += 8
+            opt['nn'] = ''
+            if value['@n_power'] == True: opt['nn'] += 'P'
+            if value['@n_gain'] == True: opt['nn'] += 'G'
+            if value['@n_timeconst'] == True: opt['nn'] += 'T'
+            if value['@n_scans'] == True: opt['nn'] += 'N'
+            if value['@n_Q'] == True: opt['nn'] += 'Q'
         elif value['@same'] == True: opt['n'] = 'Ignore'
         else: opt['n'] = 'None'
-        if   value['@capt'] == 'File name': opt['capt'] = 'file'
-        elif value['@capt'] == 'Data name': opt['capt'] = 'TITL'
-        elif value['@capt'] == 'Microwave Frequency': opt['capt'] = 'MWFQ'
-        elif value['@capt'] == 'Microwave Power': opt['capt'] = 'Power'
-        elif value['@capt'] == '(Manual)':
-            opt['capt'] = 'My'
-            opt['capt_my'] = value['@capt_my']
-        else: opt['capt'] = 'None'
         if 'YNAM' in file[0][3]:
             opt['ylabel'] = f"{file[0][3]['YNAM']}"
         else: opt['ylabel'] = f"{file[0][3]['IRNAM']}"
@@ -354,165 +354,173 @@ def v_to_opt(value,file,isDTA):
             else:
                 opt['g_axis'], opt['g_field'] = 'Bottom', None
         else: opt['gfactor'],opt['g_mod'],opt['g_field'] = None,None,None
+        if value['@imag'] == True: opt['imag'] = True
+        else: opt['imag'] = False
     else:# dat
         if value['@@same'] == True: opt['n'] = 'Ignore'
         else: opt['n'] = 'None'
         opt['xlabel'] = value['@@xnam'] if value['@@xnam'] != 'None' else ''
         opt['ylabel'] = value['@@ynam'] if value['@@ynam'] != 'None' else ''
-        if   value['@@capt'] == 'File name': opt['capt'] = 'file'
-        elif value['@@capt'] == '(Manual)':
-            opt['capt'] = 'My'
-            opt['capt_my'] = value['@@capt_my']
-        else: opt['capt'] = 'None'
-#        opt['column'] = int(value['@@column'])
+        opt['column'] = int(value['@@column'])
         opt['gfactor'] = False
         opt['g_axis'], opt['g_field'] = None,None
     return opt
 
-def make_captions(opt,file):
-    capt = []
-    if opt['capt'] == 'file':
-        for x in file: capt.append(x[0])
-    elif opt['capt'] == 'None':
-        for x in file: capt.append('')
-    elif opt['capt'] == 'MWFQ':
-        for x in file:
-            if opt['capt'] in x[3]:
-                mw = float(x[3][opt['capt']])/ 1e9# add
-                capt.append(f"{mw:.3f} GHz")
-            else: capt.append('')
-    elif opt['capt'] == 'My':
-        capt = opt['capt_my'].split(';')
-        if len(capt)<len(file):
-            for i in range(len(file)-len(capt)):
-                capt.append('')
-    else:
-        for x in file:
-            if opt['capt'] in x[3]: capt.append(x[3][opt['capt']])
-            else: capt.append('')
+def __make_captions(value,isDTA,file_list):
+    if isDTA == True:
+        if value['@capt'] == 'File name':
+            capt = [x[0] for x in file_list]
+        elif value['@capt'] == 'Data name':
+            capt = [x[3]['TITL'] for x in file_list]
+        elif value['@capt'] == 'Microwave Frequency':
+            capt = [x[3]['FrequencyMon'] for x in file_list]
+        elif value['@capt'] == 'Microwave Power':
+            capt = [x[3]['Power'] for x in file_list]
+        elif value['@capt'] == '(Manual)':
+            capt = value['@capt_my'].split(';')
+            if len(capt)<len(file_list):
+                for i in range(len(file_list)-len(capt)):
+                    capt.append('')
+        else: capt = [''] * len(file_list)
+    elif isDTA == False:
+        if value['@@capt'] == 'File name':
+            capt = [x[0] for x in file_list]
+        elif value['@@capt'] == '(Manual)':
+            capt = value['@@capt_my'].split(';')
+            if len(capt)<len(file_list):
+                for i in range(len(file_list)-len(capt)):
+                    capt.append('')
+        else: capt = [''] * len(file_list)
+    else: capt = [''] * len(file_list)
     return capt
+
 # Normalize data ===============================================
-def Normalize(dataR,param,opt,isDTA=True):
+def __Normalize(dataR,param,opt,isDTA=True):
     if isDTA and opt['n'] == 'Normal': 
-        if opt['nn'] & 8 and 'AVGS' in param: N = float(param['AVGS'])
+        if 'N' in opt['nn'] and 'AVGS' in param: N = float(param['AVGS'])
         else: N = 1
-        if opt['nn'] & 4 and 'SPTP' in param: CT = float(param['SPTP'])*1000
-        else: CT = 1
-        if opt['nn'] & 2 and 'RCAG' in param: G = 10**float(param['RCAG'])/20
+        if 'T' in opt['nn'] and 'RCTC' in param: TC = float(param['RCTC'])*1000
+        else: TC = 1
+        if 'G' in opt['nn'] and 'RCAG' in param: G = 10**(float(param['RCAG'])/20)
         else: G = 1
-        if opt['nn'] & 1 and 'MWPW' in param: P = float(param['MWPW'])*1000
+        if 'P' in opt['nn'] and 'MWPW' in param: P = float(param['MWPW'])*1000
         else: P = 1
-        dataR = dataR / N / G / CT / (P*P)
+        if 'Q' in opt['nn'] and 'QValue' in param: Q = float(param['QValue'])
+        else: Q = 1
+        dataR /= (N * G * TC * P**0.5 * Q)
     elif isDTA and opt['n'] == 'Ignore': # set max/ min = 1,-1 or 1,0
-        if 'EXPT' in param and param['EXPT'] == 'CW':
-            if param['XNAM'] == 'Field':
-                ysize, base = 2, -1
-            else: ysize, base = 1, 0
+        if 'EXPT' in param and param['EXPT'] == 'CW' and param['XNAM'] == 'Field':
+              ysize, base = 2, -1
         else: ysize, base = 1, 0
         ymax,ymin = np.amax(dataR), np.amin(dataR)
-        dataR = (dataR - ymin) / (ymax - ymin) *ysize +base
+#        dataR = (dataR - ymin) / (ymax - ymin) *ysize +base
+        dataR -= ymin
+        dataR /= (ymax - ymin) *ysize
+        dataR += base
     elif isDTA == False and opt['n'] == 'Ignore': # set max/min = 1,-1
         ymax,ymin = np.amax(dataR), np.amin(dataR)
-        dataR = (dataR - ymin) / (ymax - ymin) *2 -1
-    else: None
+#        dataR = (dataR - ymin) / (ymax - ymin) *2 -1
+        dataR -= ymin
+        dataR /= (ymax - ymin) *2
+        dataR -= 1
+    else: pass
     return dataR
 # modified data list =====================================
-def make_data_list(filelist,opt,isDTA=True):
+def __make_data_list(filelist,opt,isDTA=True):
     err = ''
-    datalist, Datax,Datay, sa = [],[],[],[]
+    Datax, Datay, sa = [],[],[]
     for xfile in filelist:
         if isDTA == True:
-            abs_x, _, Data_matrix, err_text, is_err = load_BES3T(xfile,opt)
-#        abs_x, abs_y, Data_matrix, err_text, is_err = load_BES3T(xfile,opt)
+            abs_x, _, Data_matrix, err_text, is_err = __load_BES3T(xfile,opt)
             if is_err == True: err += err_text
-            tmp_y = Normalize(Data_matrix.real, xfile[3],opt,True)
+            if opt['imag'] == True and Data_matrix[0].imag:
+                tmp_y = __Normalize(Data_matrix.imag, xfile[3],opt,True)
+            else:
+                tmp_y = __Normalize(Data_matrix.real, xfile[3],opt,True)
+            sa.append(np.amax(tmp_y)-np.amin(tmp_y))
         else:
-            abs_x, Data_matrix, err_text = load_dat(xfile)
+            abs_x, Data_matrix, err_text = __load_dat(xfile,opt)
             if err_text: return None,err_text
-            if Data_matrix != []:
-                tmp_y = Normalize(Data_matrix,None,opt,False)
-            else: tmp_y = 0
+            if len(dim := np.shape(Data_matrix)) == 2:
+                for i, col in enumerate(Data_matrix):
+                    col = __Normalize(col,None,opt,False)
+                    if i == 0: tmp_y = col
+                    else: tmp_y = np.vstack([tmp_y, col])
+                    sa.append(np.amax(col)-np.amin(col))
+            else:
+                tmp_y = __Normalize(Data_matrix,None,opt,False)
+                sa.append(np.amax(tmp_y)-np.amin(tmp_y))
         Datay.append(tmp_y)
         Datax.append(abs_x)
-        sa.append(np.amax(tmp_y) - np.amin(tmp_y))
+#        sa.append(np.amax(tmp_y) - np.amin(tmp_y))
     maxheight = max(sa)* opt['stack']
-    for c in range(len(filelist)):
-        Datay[c] = Datay[c] - maxheight * c
-        datalist.append([Datax[c], Datay[c]])
-    # datalist[index] = [x[i], data_r[i]]
-    return datalist, err
+    for c, y in enumerate(Datay):
+        y -= maxheight * c
+    return Datax, Datay, err
 
-"""
-def make_data_list_2D(filelist,opt,isDTA=True):
-    err = ''
-    if isDTA == True:
-        abs_x, abs_y, Data_matrix, err_text, is_err = load_BES3T(xfile,opt)
-        if is_err == True: err += err_text
-    return abs_x, abs_y, Data_matrix
-"""
-def get_xpos(xl,xwid,opt,DL):
-    tx = xl[0]+xwid*opt['posH'][2]
-    if opt['gfactor'] == True: # invert axis for g-factor
+def __get_capt_position(DXc,DYc,opt,tlength,xwid,ywid,xl):
+    xlimit = xl[0]+xwid*opt['posH'][2]
+    yfloat = opt['posV'][1]*ywid*0.02
+    if opt['gfactor'] == True: # invert xaxis for g-factor
         if opt['posH'][0] == 'left':
-            if DL[0][0] < tx: xpos = DL[0][0]
-            else: xpos = tx
+            if DXc[0] < xlimit + tlength:
+                  xpos = DXc[0] - tlength
+            else: xpos = xlimit
+            text_area_y = [y for i, y in enumerate(DYc) if xpos > DXc[i] > xpos + tlength]
         elif opt['posH'][0] == 'right':
-            if DL[0][-1] > tx: xpos = DL[0][-1]
-            else: xpos = tx
+            if DXc[-1] > xlimit - tlength:
+                  xpos = DXc[-1] + tlength
+            else: xpos = xlimit
+            text_area_y = [y for i, y in enumerate(DYc) if xpos - tlength > DXc[i] > xpos]
     else:
         if opt['posH'][0] == 'left':
-            if DL[0][0] > tx: xpos = DL[0][0] # if data is out of margin, shift caption inside
-            else: xpos = tx
+            if DXc[0] > xlimit + tlength:
+                  xpos = DXc[0] - tlength
+            else: xpos = xlimit
+            if len(np.shape(DYc)) == 1:
+                text_area_y = [y for i, y in enumerate(DYc) if xpos < DXc[i] < xpos + tlength]
+            else:
+                text_area_y = [y for DYcc in DYc 
+                                 for i, y in enumerate(DYcc) if xpos < DXc[i] < xpos + tlength]
         elif opt['posH'][0] == 'right':
-            if DL[0][-1] < tx: xpos = DL[0][-1]
-            else: xpos = tx
-    return xpos
-
-def get_ypos(DLc,opt,tlength,ywid,xpos,xl):
-    shifty = opt['posV'][1]*ywid*0.02
-    is_b = True if opt['posV'][0]=='bottom' else False
-    is_t = True if opt['posV'][0]=='top' else False
-    newDL = []
-    if opt['posH'][0]=='right':
-        xmin, xmax = xpos-tlength, xl[1]
+            if DXc[-1] < xlimit - tlength:
+                  xpos = DXc[-1] + tlength
+            else: xpos = xlimit
+            if len(np.shape(DYc)) == 1:
+                text_area_y = [y for i, y in enumerate(DYc) if xpos - tlength < DXc[i] < xpos]
+            else:
+                text_area_y = [y for DYcc in DYc 
+                                 for i, y in enumerate(DYcc) if xpos - tlength < DXc[i] < xpos]
+    if text_area_y == []:
+        ypos = DYc[opt['posH'][3]] + yfloat
     else:
-        xmin, xmax = xl[0], xpos+tlength
-    if opt['gfactor'] == True:
-        for w in range(len(DLc[0])):
-            if xmin >= DLc[0][w] >= xmax:
-                 newDL.append(DLc[1][w])
-    else:
-        for w in range(len(DLc[0])):
-            if xmin <= DLc[0][w] <= xmax:
-                 newDL.append(DLc[1][w])
-    ypos = newDL[opt['posH'][1]]
-    for y in newDL:
-        if is_b and y > ypos: ypos = y
-        if is_t and y < ypos: ypos = y
-    return ypos + shifty
+        text_area_y.sort()# min: 0 max : -1
+        ypos = text_area_y[opt['posV'][2]] + yfloat
+    return xpos, ypos
 
 # show graph ============================================
 # only for 1D data 
 def graph_1D(file,value,isDTA):
-    if isDTA == True and check_axis(file)==False: return 'All data must have the same XY axis. '
-    opt = v_to_opt(value,file,isDTA)
-    label_size = opt['csize'][0]
+    if isDTA == True and __check_axis(file)==False: return 'All data must have the same XY axis. '
+    opt = __v_to_opt(value,file,isDTA)
+    label_size = opt['csize']
     try:
-        DL, err = make_data_list(file,opt,isDTA)
+        DX, DY, err = __make_data_list(file,opt,isDTA)
         if err: return err
     except: return 'Data file cannot be read.'
-    capt = make_captions(opt,file)
+    capt = __make_captions(value,isDTA,file)
     if opt['gfactor'] == True and opt['g_axis'] == 'Top':
         fig, axf = plt.subplots(figsize=opt['size'],dpi=opt['dpi'])
         axf.set_ylabel(opt['ylabel'],fontsize=opt['ax_size'])
-        axf.tick_params(labelsize=label_size)
+        axf.tick_params(labelsize=opt['ax_size'])
         axf.xaxis.set_major_locator(ticker.MaxNLocator(6,steps=[1,2,2.5,5,10]))
         if opt['grid']==True: axf.grid(axis='y')
         ax = axf.twiny()
     else:
         fig, ax = plt.subplots(figsize=opt['size'],dpi=opt['dpi'])
     ax.set_xmargin(0)
-    ax.set_ymargin(opt['mar_y'])
+#    ax.set_ymargin(opt['mar_y'])
+    ax.set_ymargin(0)
     ax.tick_params(labelsize=opt['ax_size'])
     plt.xlabel('',fontsize=opt['ax_size'])
     plt.ylabel('',fontsize=opt['ax_size'])
@@ -524,8 +532,16 @@ def graph_1D(file,value,isDTA):
     ax.set(ylabel=opt['ylabel'])
     ax.set(xlabel=opt['xlabel'])
     cnt = len(file)
-    for c in range(cnt):
-        ax.plot(DL[c][0], DL[c][1], color=opt['c'][c])
+    if isDTA == False and opt['column'] > 1:
+        for c in range(cnt):
+            if len(np.shape(DY[c])) > 1:
+                for i in range(np.shape(DY[c])[0]):
+                    ax.plot(DX[c], DY[c][i], color=COLORFUL[i])
+                opt['c'] = ['black'] * cnt
+            else: ax.plot(DX[c], DY[c], color=opt['c'][c])
+    else:
+        for c in range(cnt):
+            ax.plot(DX[c], DY[c], color=opt['c'][c])
     xl, yl = ax.get_xlim(), ax.get_ylim()
     xwid, ywid= xl[1]-xl[0], yl[1]-yl[0]
     if opt['gfactor'] == True:
@@ -535,23 +551,24 @@ def graph_1D(file,value,isDTA):
     else:
         xl_l = xl[0]+ xwid *opt['mar_xl']
         xl_r = xl[1]- xwid *opt['mar_xr']
+    yl_l = yl[0]- ywid *opt['mar_yl']
+    yl_h = yl[1]+ ywid *opt['mar_yh']
     ax.set_xlim(xl_l,xl_r)
+    ax.set_ylim(yl_l,yl_h)
     xl, yl = ax.get_xlim(), ax.get_ylim()
     xwid, ywid= xl[1]-xl[0], yl[1]-yl[0]
     for c in range(cnt):
         if opt['ctyp'] == 'spectrum':
-            xpos = get_xpos(xl,xwid,opt,DL[c])
-            if opt['size'][0] < 5.5: tlength = xwid*opt['csize'][1]*len(capt[c])
-            else: tlength = xwid*opt['csize'][1]*len(capt[c])
-            ypos = get_ypos(DL[c],opt,tlength,ywid,xpos,xl)
+            tlength = xwid *opt['csize']*len(capt[c])*0.0125/opt['size'][0]
+            xpos, ypos = __get_capt_position(DX[c],DY[c],opt,tlength,xwid,ywid,xl)
         else: # list
             xpos = xl[0]+xwid*opt['posH'][2]
             if opt['posV'][0] == 'bottom':#upper
-                ypos = yl[1]-opt['csize'][2]*ywid*(c+1)-ywid*0.03
+                ypos = yl[1]-ywid*(0.02+opt['csize']*(c+1)*0.022/opt['size'][1])
             else:#down
-                ypos = yl[0]+opt['csize'][2]*ywid*(cnt-c)+ywid*0.03
-        ax.text(xpos, ypos,capt[c], ha=opt['posH'][0],va=opt['posV'][0],color=opt['c'][c],fontsize=label_size)
-    if opt['size'][0] < 5.5:
+                ypos = yl[0]+ywid*(0.02+opt['csize']*(cnt-c)*0.022/opt['size'][1])
+        ax.text(xpos, ypos, capt[c], ha=opt['posH'][0], va=opt['posV'][0], color=opt['c'][c], fontsize=label_size)
+    if opt['size'][0] < 6:
         ax.xaxis.set_major_locator(ticker.MaxNLocator(6,steps=[1,2,2.5,5,10]))
     if opt['gfactor'] == True:
         ax.xaxis.set_major_locator(ticker.MaxNLocator(6))
@@ -561,8 +578,8 @@ def graph_1D(file,value,isDTA):
         if opt['g_field'] == 'Top':
             axf = ax.twiny()
         if opt['g_field'] in ('Top','Bottom'):
-            axf.set_xlabel(opt['xlabel'],fontsize=label_size)
-            axf.tick_params(labelsize=label_size)
+            axf.set_xlabel(opt['xlabel'],fontsize=opt['ax_size'])
+            axf.tick_params(labelsize=opt['ax_size'])
             mw = float(file[0][3]['MWFQ'])/1e9*714.418
             fl_left, fl_right = mw/xl[0], mw/xl[1]
             axf.set_xlim([fl_left,fl_right])
@@ -574,18 +591,21 @@ def graph_1D(file,value,isDTA):
 # 2D data (1 file only)#####################################
 def graph_2D(file,value,isDTA):
     xfile = file[0]
-    opt = v_to_opt(value,file,isDTA)
-    text_size = opt['csize'][0]
+    opt = __v_to_opt(value,file,isDTA)
+    text_size = opt['csize']
     if isDTA:
-        abs_x, abs_y, Data_matrix, err_text, is_err = load_BES3T(xfile,opt)
+        abs_x, abs_y, Data_matrix, err_text, is_err = __load_BES3T(xfile,opt)
     if is_err: return err
     fig, ax = plt.subplots(figsize=opt['size'],dpi=opt['dpi'])
     cs = ax.contourf(abs_x, abs_y, Data_matrix)
     xl, yl = ax.get_xlim(), ax.get_ylim()
     xl_l = xl[0]+(xl[1]-xl[0])*opt['mar_xl']
     xl_r = xl[1]-(xl[1]-xl[0])*opt['mar_xr']
+    yl_l = yl[0]-(yl[1]-yl[0])*opt['mar_yl']
+    yl_h = yl[1]+(yl[1]-yl[0])*opt['mar_yh']
     ax.set_xlim(xl_l,xl_r)
-    ax.set_ymargin(opt['mar_y'])
+    ax.set_ylim(yl_l,yl_h)
+#    ax.set_ymargin(opt['mar_y'])
     ax.tick_params(labelsize=text_size)
     plt.xlabel('',fontsize=text_size)
     plt.ylabel('',fontsize=text_size)
@@ -608,7 +628,7 @@ def graph_2D(file,value,isDTA):
             fl_min, fl_max = mw/yl[0], mw/yl[1]
             axg.set_ylim([fl_min,fl_max])
             cbar = fig.colorbar(cs, pad=0.18)
-    try: hoge = cbar
+    try: _ = cbar # cbar exist
     except: cbar = fig.colorbar(cs)
     if opt['grid']==True: ax.grid()
     ax.set(ylabel=opt['ylabel'])

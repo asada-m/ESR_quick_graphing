@@ -1,10 +1,10 @@
 """
-ESR quick graphing ver 1.04 (2021/01/19)
+ESR quick graphing ver 1.05 (2021/01/26)
 Layout and functions for initializing
 """
 import configparser
 import os
-import sys
+#import sys
 import PySimpleGUI as sg
 
 # read setting file and create if it is not existing ===========
@@ -53,8 +53,9 @@ FIGURE_OPTIONS_default['DEFAULT'] = {
         'Color' : True,
         'Normalize_MWpower' : True,
         'Normalize_Gain' : True,
-        'Normalize_CT' : True,
+        'Normalize_TC' : True,
         'Normalize_Scans' : True,
+        'Normalize_Qvalue' : True,
         'DTA_Normalize' : 0,
         'DTA_noYscale' : True,
         'DTA_Grid' : True,
@@ -62,7 +63,7 @@ FIGURE_OPTIONS_default['DEFAULT'] = {
         'DTA_Captions' : 'Data name',
         'DTA_Csize' : 'medium',
         'DTA_Cpos1' : 'List',
-        'DTA_Cpos2' : 'Top-Left',
+        'DTA_Cpos2' : 'Upper-Left',
         'dat_Normalize' : 0,
         'dat_noYscale' : True,
         'dat_Grid' : True,
@@ -70,7 +71,7 @@ FIGURE_OPTIONS_default['DEFAULT'] = {
         'dat_Captions' : 'File name',
         'dat_Csize' : 'medium',
         'dat_Cpos1' : 'List',
-        'dat_Cpos2' : 'Top-Left',
+        'dat_Cpos2' : 'Upper-Left',
         'dat_Xname' : '',
         'dat_Yname' : '',
         'g-factor' : False,
@@ -116,8 +117,9 @@ def load_options_fromfile(section):
     fo['@c_black'] = not fo['@c_color']
     fo['@n_power'] = FIGURE_OPTIONS.getboolean(section,'Normalize_MWpower')
     fo['@n_gain'] = FIGURE_OPTIONS.getboolean(section,'Normalize_Gain')
-    fo['@n_convtime'] = FIGURE_OPTIONS.getboolean(section,'Normalize_CT')
+    fo['@n_timeconst'] = FIGURE_OPTIONS.getboolean(section,'Normalize_TC')
     fo['@n_scans'] = FIGURE_OPTIONS.getboolean(section,'Normalize_Scans')
+    fo['@n_Q'] = FIGURE_OPTIONS.getboolean(section,'Normalize_Qvalue')
     fo['@same'] = True if FIGURE_OPTIONS.getint(section,'DTA_Normalize') == 2 else False
     fo['@normal'] = True if FIGURE_OPTIONS.getint(section,'DTA_Normalize') == 1 else False
     fo['@no'] = True if FIGURE_OPTIONS.getint(section,'DTA_Normalize') == 0 else False
@@ -153,7 +155,7 @@ def update_options(window,value):
     if section not in ['DEFAULT'] + FIGURE_OPTIONS.sections(): return False
     load_options_fromfile(section)
     namelist = ('@size_yoko','@size_tate','@size_manual','@tight','@c_color','@c_black',
-    '@n_power','@n_gain','@n_convtime','@n_scans','@same','@normal','@no','@noysc','@grid','@fixcol','@fogcol',
+    '@n_power','@n_gain','@n_timeconst','@n_scans','@n_Q','@same','@normal','@no','@noysc','@grid','@fixcol','@fogcol',
     '@@same','@@no','@@noysc','@@grid','@@fixcol','@@fogcol','@size_MX','@size_MY','@size_dpi',
     '@capt','@csize','@ctype','@cpos','@@capt','@@csize','@@ctype','@@cpos','@@xnam','@@ynam',
     '@g_adjust','@g_mod','@g_style','@imag',)
@@ -196,8 +198,9 @@ def save_options_pop(name,value):
     FIGURE_OPTIONS[name]['Color'] = str(value['@c_color'])
     FIGURE_OPTIONS[name]['Normalize_MWpower'] = str(value['@n_power'])
     FIGURE_OPTIONS[name]['Normalize_Gain'] = str(value['@n_gain'])
-    FIGURE_OPTIONS[name]['Normalize_CT'] = str(value['@n_convtime'])
+    FIGURE_OPTIONS[name]['Normalize_TC'] = str(value['@n_timeconst'])
     FIGURE_OPTIONS[name]['Normalize_Scans'] = str(value['@n_scans'])
+    FIGURE_OPTIONS[name]['Normalize_Qvalue'] = str(value['@n_Q'])
     if value['@same'] == True: FIGURE_OPTIONS[name]['DTA_Normalize'] = '2'
     elif value['@normal'] == True: FIGURE_OPTIONS[name]['DTA_Normalize'] = '1'
     else: FIGURE_OPTIONS[name]['DTA_Normalize'] = '0'
@@ -242,8 +245,9 @@ def delete_option(section):
 def make_dpi_aware():
   import ctypes
   import platform
-  if int(platform.release()) >= 8:
+  if platform.system() == 'Windows' and int(platform.release()) >= 8:
     ctypes.windll.shcore.SetProcessDpiAwareness(True)
+
 if DPI_mode:
     make_dpi_aware()
 
@@ -280,20 +284,20 @@ DTA_col = sg.Tab(' DTA ',k='TAB_dta',layout=[[
             tooltip=' EMX data are already normalized. \n Detail setting is in Option tab. '),
         sg.Radio('None',"tate",k='@no',default=fo['@no'],enable_events=True)],
     [sg.Checkbox('align in g-factor → see Option Tab',k='@g_adjust',default=fo['@g_adjust'],enable_events=True,pad=(3,0)),
-    sg.Checkbox('Imaginary',k='@imag',default=False,enable_events=True,visible=False,pad=(3,0))
+    sg.Checkbox('Imaginary',k='@imag',default=False,enable_events=True,pad=(3,0))
     ],
     [sg.Checkbox('No Y scale',k='@noysc',default=fo['@noysc'],enable_events=True),
     sg.Checkbox('Grid',k='@grid',default=fo['@grid'],enable_events=True),
     sg.Radio('Fix color',"fixcol",k='@fixcol',pad=(3,0),default=fo['@fixcol'],enable_events=True,
     tooltip=' Colors are fixed to the spectrum when you chenge the order. '),
-    sg.Radio('Forget color',"fixcol",k='@fogcol',pad=(3,0),default=fo['@fogcol'],enable_events=True)],
+    sg.Radio('Reset color',"fixcol",k='@fogcol',pad=(3,0),default=fo['@fogcol'],enable_events=True)],
     [sg.Text('Captions'),
     sg.Combo(CAPT,k='@capt',default_value=fo['@capt'],enable_events=True),
     sg.Text('size'),
     sg.Combo(['large','medium','small'],k='@csize',size=(8,1),default_value=fo['@csize'],enable_events=True)],
     [sg.InputText('1;2;3;(manual captions)',k='@capt_my',size=(I_yoko+18,1))],
     [sg.Text('position'),sg.Combo(['List','Spectrum'],k='@ctype',default_value=fo['@ctype'],enable_events=True),
-    sg.Combo(['Top-Left','Top-Right','Bottom-Left','Bottom-Right'],k='@cpos',default_value=fo['@cpos'],enable_events=True),
+    sg.Combo(['Upper-Left','Upper-Right','Lower-Left','Lower-Right'],k='@cpos',default_value=fo['@cpos'],enable_events=True),
     sg.Checkbox('align',k='@c_align',visible=False),
     ],
 #    sg.Frame('',relief='groove',pad=(0,0),size=(15,1),layout=[
@@ -305,7 +309,7 @@ DAT_col = sg.Tab(' dat ',k='TAB_dat',layout=[[
     sg.InputText('C:/',k='@@fol_read',size=(I_yoko+9,1),enable_events=True),
     sg.FolderBrowse(k='@@fol_browse',initial_folder=ini_fo)],
     [sg.Text('Mode'),sg.Combo(['1D'],size=(3,1),default_value='1D',k='@@mode',enable_events=True),
-#    sg.Text('Col'),sg.Spin(list(range(1,21)),k='@@column',size=(3,1)),
+    sg.Text('Col'),sg.Spin(list(range(1,21)),k='@@column',size=(3,1)),
     sg.Text('Find'),sg.InputText('',k='@@find_free',size=(17,1),enable_events=True,
     tooltip=' if separated with a space, multiple words can be searched. ')],
     [sg.Listbox('',k='@@liall',size=(I_yoko+15,file_row), select_mode=sg.LISTBOX_SELECT_MODE_EXTENDED)],
@@ -319,12 +323,12 @@ DAT_col = sg.Tab(' dat ',k='TAB_dat',layout=[[
         sg.Checkbox('Grid',k='@@grid',default=fo['@@grid'],enable_events=True),
     sg.Radio('Fix color',"fixcold",k='@@fixcol',pad=(3,0),default=fo['@@fixcol'],enable_events=True,
     tooltip=' Colors are fixed to the spectrum when you chenge the order. '),
-    sg.Radio('Forget color',"fixcold",k='@@fogcol',pad=(3,0),default=fo['@@fogcol'],enable_events=True)],
+    sg.Radio('Reset color',"fixcold",k='@@fogcol',pad=(3,0),default=fo['@@fogcol'],enable_events=True)],
     [sg.Text('Captions'),sg.Combo(['None','File name','(Manual)'],k='@@capt',default_value=fo['@@capt'],enable_events=True),
     sg.Text('size'),sg.Combo(['large','medium','small'],k='@@csize',size=(8,1),default_value=fo['@@csize'],enable_events=True)],
     [sg.InputText('1;2;3;(manual captions)',k='@@capt_my',size=(I_yoko+18,1))],
     [sg.Text('position'),sg.Combo(['List','Spectrum'],k='@@ctype',default_value=fo['@@ctype'],enable_events=True),
-    sg.Combo(['Top-Left','Top-Right','Bottom-Left','Bottom-Right'],k='@@cpos',default_value=fo['@@cpos'],enable_events=True),
+    sg.Combo(['Upper-Left','Upper-Right','Lower-Left','Lower-Right'],k='@@cpos',default_value=fo['@@cpos'],enable_events=True),
 #    sg.Button('memo',k='@@b_memo',button_color=white_bcolor),
     ],
     [sg.Text('X name',pad=((3,1),3)),
@@ -339,10 +343,11 @@ Opt_col = sg.Tab(' Option ',k='TAB_opt',layout=[
 #        [sg.Radio('EMX',"NOR",k='@n_emx',enable_events=True),
 #        sg.Radio('Other (E500, E580, E680, etc.)',"NOR",k='@n_other',default=True,enable_events=True)],
         [sg.Checkbox('MW power',k='@n_power',default=fo['@n_power'],pad=(5,0),enable_events=True),
-        sg.Checkbox('Gain',k='@n_gain',default=fo['@n_gain'],pad=(5,0),enable_events=True)],
-        [sg.Checkbox('Conversion Time',k='@n_convtime',default=fo['@n_convtime'],pad=(5,0),enable_events=True),
+        sg.Checkbox('Gain',k='@n_gain',default=fo['@n_gain'],pad=(5,0),enable_events=True),
+        sg.Checkbox('Q-value',k='@n_Q',default=fo['@n_Q'],enable_events=True),],
+        [sg.Checkbox('TimeConstant',k='@n_timeconst',default=fo['@n_timeconst'],pad=(5,0),enable_events=True),
         sg.Checkbox('Number of Scans',k='@n_scans',default=fo['@n_scans'],pad=(5,0),enable_events=True),],
-        [sg.Text('Intensity = Intensity\n / Scans / 10^(Gain /20) / ConvTime[s] / Power[W] ^2',k='@n_text')],
+        [sg.Text('Intensity = Intensity\n / Scans / 10^(Gain /20) / TimeConst[s] / √Power[W] / Q',k='@n_text')],
     ])],
     [sg.Frame(' g-factor (for DTA data)',layout=[
         [sg.Text('Field Modification:'),sg.InputText(fo['@g_mod'],k='@g_mod',size=(5,1),enable_events=True),sg.Text('G')],
@@ -350,8 +355,14 @@ Opt_col = sg.Tab(' Option ',k='TAB_opt',layout=[
         [sg.Text('X axis style:'),
         sg.Combo(['Bottom: g-factor , Top: MagField','Bottom: g-factor , Top: none','Bottom: MagField , Top: g-factor'],
             k='@g_style',size=(32,1),default_value=fo['@g_style'],enable_events=True,
-            tooltip=' Magnetic field of the 1st data in the list will be shown. ')],
+            tooltip=' When spectra are aligned in g-factor, \n Magnetic field of the 1st data in the list will be shown. ')],
     ])],
+#    [sg.Frame(' Axis transformation',layout=[
+#        [sg.Checkbox('Gauss --> mT')],
+#        [sg.Checkbox('ns --> μs')],
+#        [sg.Checkbox('ns --> ms')],
+#        [sg.Checkbox('nm --> Angstrom')]
+#    ])],
     [sg.Frame(' Figure size ',layout=[
     [sg.Radio('7:5 landscape',"size",k='@size_yoko',default=fo['@size_yoko'],enable_events=True),
         sg.Radio('5:7 portrait',"size",k='@size_tate',default=fo['@size_tate'],enable_events=True)],
@@ -414,7 +425,7 @@ How_col = sg.Tab(' How to ',k='TAB_how',layout=[
     ])
 
 Info_col = sg.Tab(' Info ',k='TAB_info',layout=[
-    [sg.Text('ESR quick graphing  ver.1.04 ',font=('default 16 bold'))],
+    [sg.Text('ESR quick graphing  ver.1.05 ',font=('default 16 bold'))],
     [sg.Text('Copyright © AsadaMizue 2021 All rights reserved.')],
     [sg.Text('This is an open-source program.\n\
 The source files for the latest version are available from: ')],
@@ -443,9 +454,12 @@ LAYOUT = [[sg.Frame('',relief='flat',pad=(0,(0,5)),vertical_alignment='top',layo
     sg.Slider(k='@mar_XL',pad=((0,1),0),range=(5,-49),size=(12,10),default_value=5,orientation='h',enable_events=True),
     sg.Slider(k='@mar_XR',pad=((1,0),0),range=(-49,5),size=(12,10),default_value=5,orientation='h',enable_events=True),
     sg.Text('Right',pad=marg_pad)],
-    [sg.Text('Y margin',size=marg_size,pad=(3,(8,0))),
-    sg.Slider(k='@mar_Ya',pad=(0,0),range=(10,-40),size=(24,10),default_value=5,orientation='h',enable_events=True)],
+    [sg.Text('Y margin Low',size=marg_size,pad=(3,(8,0))),
+    sg.Slider(k='@mar_YL',pad=((0,1),0),range=(5,-49),size=(12,10),default_value=5,orientation='h',enable_events=True),
+    sg.Slider(k='@mar_YH',pad=((1,0),0),range=(-49,5),size=(12,10),default_value=5,orientation='h',enable_events=True),
+    sg.Text('High',pad=marg_pad)],
+#    [sg.Text('Y margin',size=marg_size,pad=(3,(8,0))),
+#    sg.Slider(k='@mar_Ya',pad=(0,0),range=(10,-40),size=(24,10),default_value=5,orientation='h',enable_events=True)],
     ])]]),
     migi_col]]
-
 
