@@ -20,7 +20,7 @@ python -m pip install numpy
 python -m pip install matplotlib  
 python -m pip install PySimpleGUI  
 
-３．ESRgraph_main.py　を実行すると起動します。  
+３．ESR_graph_main.py　を実行すると起動します。  
 ４．exeファイルを作成したい場合は、PyInstallerを別途使ってパッケージしてください。  
 (matplotlibのバージョンが新しいとexe化に失敗してしまうので、3.2.2を使ってください)  
 実行ファイルは数十MBくらいのサイズになります。  
