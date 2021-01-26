@@ -1,5 +1,5 @@
 """
-ESR quick graphing ver 1.04 (2021/01/19)
+ESR quick graphing ver 1.05 (2021/01/26)
 Main loop and functions related to GUI window
 """
 import os
@@ -8,7 +8,7 @@ import PySimpleGUI as sg
 import ESR_graph_module as egm
 from ESR_graph_layout import *
 
-window = sg.Window('ESR quick graphing ver1.04',LAYOUT,finalize=True)
+window = sg.Window('ESR quick graphing ver1.05',LAYOUT,finalize=True)
 window['@link'].set_cursor(cursor='hand2') # mouse-over events
 window['@link2'].set_cursor(cursor='hand2')
 
@@ -59,19 +59,23 @@ def update_enable_options():
             window[x].update(disabled=False)
 #        window['@2D_text'].update(visible=False)
 #        window['@2D_slice'].update(visible=False)
-#    if state_staged & 64:
-#        window['@imag'].update(disabled=False)
-#    else:
-#        window['@imag'].update(disabled=True)
+    if state_staged & 64:
+        window['@imag'].update(disabled=False)
+    else:
+        window['@imag'].update(disabled=True, value=False)
+        value['@imag'] = False
 
 def update_margin(xpar, ypar, separate):
     window['@mar_XL'].update(value=xpar)
     window['@mar_XR'].update(value=xpar)
-    window['@mar_Ya'].update(value=ypar)
+#    window['@mar_Ya'].update(value=ypar)
+    window['@mar_YL'].update(value=ypar)
+    window['@mar_YH'].update(value=ypar)
     window['@stk'].update(value=separate)
-    value['@mar_XL'],value['@mar_XR'],value['@mar_Ya'],value['@stk'] = xpar,xpar,ypar,separate
+#    value['@mar_XL'],value['@mar_XR'],value['@mar_Ya'],value['@stk'] = xpar,xpar,ypar,separate
+    value['@mar_XL'],value['@mar_XR'],value['@mar_YL'],value['@mar_YH'],value['@stk'] = xpar,xpar,ypar,ypar,separate
 
-# selecte data ===================================================
+# select data ===================================================
 def add_files(isDTA):
     if isDTA == True:
         selected, list_A, list_B, allfiles = value['@liall'], file_use, file_use_list, flist_DTADSC
@@ -88,13 +92,13 @@ def remove_files(isDTA):
         selected, list_A, list_B = value['@liuse'], file_use, file_use_list
     else: selected, list_A, list_B = value['@@liuse'], file_use_dat, file_use_list_dat
     for x in selected:
-        if x in list_A:
-            list_A.remove(x)
-            for y in list_B:
-                if y[0] == x:
-                    y[-1] = ''
-                    list_B.remove(y)
+        for a , b in zip(list_A, list_B):
+            if x == a:
+                list_A.remove(a)
+                b[-1] = ''
+                list_B.remove(b)
     return list_A,list_B
+
 
 # change order of data list========================================
 def order_up():
@@ -155,15 +159,16 @@ def show_graph():
 
 # fix color order ================================================
 def fixcolor(filelist):
-    if len(filelist) <= MAX_DATALIST:
-        y = len(filelist[0]) - 1 # datafile[-1] corresponding to color information
-        usedcolorlist = [xfile[y] for xfile in filelist if xfile[y] in COLORFUL]
-        availablecolor = [x for x in COLORFUL if x not in usedcolorlist]
-        i = 0
-        for x in range(len(filelist)):
-            if filelist[x][y] == '':
-                filelist[x][y] = availablecolor[i]
+    usedcolorlist = [xfile[-1] for xfile in filelist if xfile[-1] in COLORFUL]
+    availablecolor = [x for x in COLORFUL if x not in usedcolorlist]
+    i = 0
+    for xfile in filelist:
+        if xfile[-1] == '':
+            try:
+                xfile[-1] = availablecolor[i]
                 i += 1
+            except:
+                xfile[-1] = 'black'
     return filelist
 
 # save graph file ==================================================
@@ -173,7 +178,7 @@ def read_filelist(pathname,extension):# search png in folder
         files = [f for f in os.listdir(pathname) if os.path.isfile(os.path.join(pathname,f))]
         for xfile in files:
             if xfile[-len(extension):] == extension: listup_files.append(xfile)
-    except: None
+    except: pass
     return listup_files
 
 def save_a_data():
@@ -300,14 +305,20 @@ while True:
         file_use_dat, file_use_list_dat, resel = order_down()
 # color order =================================================
     elif event == '@fixcol':
-        for x in range(len(file_use_list)):
-            file_use_list[x][6] = COLORFUL[x]
+        for i, xfile in enumerate(file_use_list):
+            if i < len(COLORFUL):
+                xfile[6] = COLORFUL[i]
+            else:
+                xfile[6] = 'black'
     elif event == '@fogcol':
         for xfile in file_use_list:
             xfile[6] = ''
     elif event == '@@fixcol':
-        for x in range(len(file_use_list_dat)):
-            file_use_list_dat[x][3] = COLORFUL[x]
+        for i, xfile in enumerate(file_use_list_dat):
+            if i < len(COLORFUL):
+                xfile[3] = COLORFUL[i]
+            else:
+                xfile[3] = 'black'
     elif event == '@@fogcol':
         for xfile in file_use_list_dat:
             xfile[3] = ''
@@ -345,7 +356,7 @@ while True:
         webbrowser.open('https://github.com/asada-m/ESR_quick_graphing')
 ####### under construction ##############################
     elif event == '@@mode' and value['@@mode'] != '1D':
-        sg.popup('Sorry ! \nOther graph mode is not available yet. ')
+        sg.popup('Sorry ! \n2D mode is not available yet. ')
         window['@@mode'].update(value='1D')
 #    elif event == '@n_emx':
 #        window['@n_convtime'].update(value=False)
@@ -376,7 +387,7 @@ while True:
           window['@@b_add'].update(disabled=True)
     else: window['@@b_add'].update(disabled=False)
 
-    if value['@light'] == False:
+    if value['@light'] == False and event != 'show':
         show_graph()
 
 window.close()
