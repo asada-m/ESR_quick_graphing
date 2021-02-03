@@ -53,6 +53,9 @@ def update_enable_options():
     if state_staged & 8:
         for x in ('@same','@normal','@no','@fixcol','@fogcol','@noysc','@capt','@csize','@capt_my','@ctype','@cpos','@stk'):
             window[x].update(disabled=True)
+        if value['@find_d'] != '2D':
+            window['@find_d'].update(value='2D')
+            value['@find_d'] = '2D'
 #        window['@2D_text'].update(visible=True)
 #        window['@2D_slice'].update(visible=True)
     else:
@@ -271,16 +274,17 @@ while True:
         window['@fol_read'].update(value=folder)
         # read files
         flist_DTADSC = egm.folder_select(value['@fol_read'])
-        filelist = []
-        if flist_DTADSC and not flist_DTADSC[0]: continue
-        for x in flist_DTADSC:
-            if egm.find_data(x,value) == True: filelist.append(x[0])
         # add selected file
         if egm.DTADSC_exists(folder,file) == True:
             file_base = os.path.basename(file)[:-4]
             file_use,file_use_list = add_files([file_base],True)
             update_enable_options()
             if state_staged & 8: update_margin(0,0,0)
+        # refresh list
+        filelist = []
+        if flist_DTADSC and not flist_DTADSC[0]: continue
+        for x in flist_DTADSC:
+            if egm.find_data(x,value) == True: filelist.append(x[0])
     elif event == '@fol_read' and value['@fol_read']:
         flist_DTADSC = egm.folder_select(value['@fol_read'])
         filelist = []
