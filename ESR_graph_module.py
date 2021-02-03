@@ -1,5 +1,5 @@
 """
-ESR quick graphing ver 1.05 (2021/01/26)
+ESR quick graphing ver 1.06 (2021/02/03)
 functions for loading data and graphing
 """
 import math
@@ -11,7 +11,7 @@ from matplotlib import ticker, cm
 from ESR_graph_layout import COLORFUL
 
 # load DSC data ============================================
-def __read_DSC_file(DSC_filename_fullpath):
+def read_DSC_file(DSC_filename_fullpath):
     param = {}
     is_state = 256 # all:256 Complex:64 Mani:32 Pulse:16 2D:8 END:4 Time:2 fs:1 
     with open(DSC_filename_fullpath) as f:
@@ -50,6 +50,17 @@ def __read_DSC_file(DSC_filename_fullpath):
 # param:  dictionary{'Key':'Value'}
 # err_text: 'error message'
 #=============================================================
+def DTADSC_exists(folder,file):
+    if os.path.splitext(file)[1] not in ('.DTA','.dta','.DSC','.dsc'):
+        return False
+    try: files = [f for f in os.listdir(folder) if os.path.isfile(os.path.join(folder,f))]
+    except: return False
+    file = os.path.basename(file)[:-4]
+    dtafile, dscfile = (file + '.DTA', file + '.dta'), (file + '.DSC', file + '.dsc')
+    for x in dtafile:
+        for y in dscfile:
+            if x in files and y in files: return True
+    return False
 # select folder ==============================================
 def folder_select(folder_path):
     try: files = [f for f in os.listdir(folder_path) if os.path.isfile(os.path.join(folder_path,f))]
@@ -64,7 +75,7 @@ def folder_select(folder_path):
     for x in filelist_DTA:
         for y in filelist_DSC:
             if x[:-4] == y[:-4]:
-                para, is_state = __read_DSC_file(folder_path+'/'+y)
+                para, is_state = read_DSC_file(folder_path+'/'+y)
                 flist_DTADSC.append([x[:-4], x, y, para, folder_path, is_state, ''])
     return flist_DTADSC
 # folder_path:  full path
@@ -341,9 +352,19 @@ def __v_to_opt(value,file,isDTA):
         elif value['@same'] == True: opt['n'] = 'Ignore'
         else: opt['n'] = 'None'
         if 'YNAM' in file[0][3]:
-            opt['ylabel'] = f"{file[0][3]['YNAM']}"
+            if file[0][3]['YNAM'] == 'Field':
+                opt['ylabel'] = 'Magnetic field (G)'
+            elif 'YUNI' in file[0][3]:
+                opt['ylabel'] = f"{file[0][3]['YNAM']} ({file[0][3]['YUNI']})"
+            else:
+                opt['ylabel'] = f"{file[0][3]['YNAM']}"
+        elif 'IRUNI' in file[0][3] and file[0][3]['IRUNI'] != '':
+            opt['ylabel'] = f"{file[0][3]['IRNAM']} ({file[0][3]['IRUNI']})"
         else: opt['ylabel'] = f"{file[0][3]['IRNAM']}"
-        opt['xlabel'] = f"{file[0][3]['XNAM']} ({file[0][3]['XUNI']})"
+        if file[0][3]['XNAM'] == 'Field':
+            opt['xlabel'] = 'Magnetic field (G)'
+        else:
+            opt['xlabel'] = f"{file[0][3]['XNAM']} ({file[0][3]['XUNI']})"
         if file[0][5] & 1:
             opt['gfactor'] = True if value['@g_adjust'] == True else False
             opt['g_mod'] = float(value['@g_mod'])
@@ -381,7 +402,15 @@ def __make_captions(value,isDTA,file_list):
             if len(capt)<len(file_list):
                 for i in range(len(file_list)-len(capt)):
                     capt.append('')
-        else: capt = [''] * len(file_list)
+        elif value['@capt'] == '':
+            capt = [''] * len(file_list)
+#        else: capt = [''] * len(file_list)
+        else:
+            capt = []
+            for x in file_list:
+                if value['@capt'] in x[3].keys():
+                    capt.append(x[3][value['@capt']])
+                else: capt.append('')
     elif isDTA == False:
         if value['@@capt'] == 'File name':
             capt = [x[0] for x in file_list]
@@ -508,7 +537,9 @@ def graph_1D(file,value,isDTA):
         DX, DY, err = __make_data_list(file,opt,isDTA)
         if err: return err
     except: return 'Data file cannot be read.'
+#    print(f'check: datalist made  DYshape = {np.shape(DY)}')
     capt = __make_captions(value,isDTA,file)
+#    print('check: caption made')
     if opt['gfactor'] == True and opt['g_axis'] == 'Top':
         fig, axf = plt.subplots(figsize=opt['size'],dpi=opt['dpi'])
         axf.set_ylabel(opt['ylabel'],fontsize=opt['ax_size'])
@@ -519,7 +550,6 @@ def graph_1D(file,value,isDTA):
     else:
         fig, ax = plt.subplots(figsize=opt['size'],dpi=opt['dpi'])
     ax.set_xmargin(0)
-#    ax.set_ymargin(opt['mar_y'])
     ax.set_ymargin(0)
     ax.tick_params(labelsize=opt['ax_size'])
     plt.xlabel('',fontsize=opt['ax_size'])
@@ -536,7 +566,10 @@ def graph_1D(file,value,isDTA):
         for c in range(cnt):
             if len(np.shape(DY[c])) > 1:
                 for i in range(np.shape(DY[c])[0]):
-                    ax.plot(DX[c], DY[c][i], color=COLORFUL[i])
+                    if value['@c_black'] == True:
+                        ax.plot(DX[c], DY[c][i], color='black', linestyle=opt['ls'][i])
+                    else:
+                        ax.plot(DX[c], DY[c][i], color=COLORFUL[i])
                 opt['c'] = ['black'] * cnt
             else: ax.plot(DX[c], DY[c], color=opt['c'][c])
     else:
@@ -557,22 +590,29 @@ def graph_1D(file,value,isDTA):
     ax.set_ylim(yl_l,yl_h)
     xl, yl = ax.get_xlim(), ax.get_ylim()
     xwid, ywid= xl[1]-xl[0], yl[1]-yl[0]
+    tlength = [xwid *opt['csize']*len(x)*0.011/opt['size'][0] for x in capt]
+    longest = max(tlength)
     for c in range(cnt):
         if opt['ctyp'] == 'spectrum':
-            tlength = xwid *opt['csize']*len(capt[c])*0.0125/opt['size'][0]
+            tlength = xwid *opt['csize']*len(capt[c])*0.011/opt['size'][0]
             xpos, ypos = __get_capt_position(DX[c],DY[c],opt,tlength,xwid,ywid,xl)
+            ax.text(xpos, ypos, capt[c], ha=opt['posH'][0], va=opt['posV'][0], color=opt['c'][c], fontsize=label_size)
         else: # list
-            xpos = xl[0]+xwid*opt['posH'][2]
+            if opt['posH'][0] == 'left': 
+                xpos = xl[0]+xwid*opt['posH'][2]
+            else:
+                xpos = xl[0]+xwid*0.95 - longest
             if opt['posV'][0] == 'bottom':#upper
                 ypos = yl[1]-ywid*(0.02+opt['csize']*(c+1)*0.022/opt['size'][1])
             else:#down
                 ypos = yl[0]+ywid*(0.02+opt['csize']*(cnt-c)*0.022/opt['size'][1])
-        ax.text(xpos, ypos, capt[c], ha=opt['posH'][0], va=opt['posV'][0], color=opt['c'][c], fontsize=label_size)
+            ax.text(xpos, ypos, capt[c], ha='left', va=opt['posV'][0], color=opt['c'][c], fontsize=label_size)
     if opt['size'][0] < 6:
         ax.xaxis.set_major_locator(ticker.MaxNLocator(6,steps=[1,2,2.5,5,10]))
     if opt['gfactor'] == True:
         ax.xaxis.set_major_locator(ticker.MaxNLocator(6))
     if opt['n'] == 'Normal': plt.title('** Normalized by parameters **')
+#    if opt['n'] == 'Normal': plt.title(f"** Normalized by {','.join(opt['nn'])} **")
     elif opt['n'] == 'Ignore': plt.title('** Normalized by max-min intensity **')
     if opt['gfactor'] == True:
         if opt['g_field'] == 'Top':
@@ -584,7 +624,9 @@ def graph_1D(file,value,isDTA):
             fl_left, fl_right = mw/xl[0], mw/xl[1]
             axf.set_xlim([fl_left,fl_right])
     if opt['t']==True: fig.tight_layout()
+#    print('check: all figure options set')
     plt.savefig('tmp',format='png')
+#    print('check: figure saved')
     plt.close()
     return None
 #=============================================================
@@ -605,12 +647,11 @@ def graph_2D(file,value,isDTA):
     yl_h = yl[1]+(yl[1]-yl[0])*opt['mar_yh']
     ax.set_xlim(xl_l,xl_r)
     ax.set_ylim(yl_l,yl_h)
-#    ax.set_ymargin(opt['mar_y'])
     ax.tick_params(labelsize=text_size)
     plt.xlabel('',fontsize=text_size)
     plt.ylabel('',fontsize=text_size)
     if opt['gfactor']==True:
-        if 'Field' in opt['xlabel']:
+        if 'Magnetic field' in opt['xlabel']:
             axg = ax.twiny()
             xl = ax.get_xlim()
             axg.set_xlabel('g-factor',fontsize=text_size)
@@ -619,7 +660,7 @@ def graph_2D(file,value,isDTA):
             fl_min, fl_max = mw/xl[0], mw/xl[1]
             axg.set_xlim([fl_min,fl_max])
             cbar = fig.colorbar(cs)
-        if 'Field' in opt['ylabel']:
+        if 'Magnetic field' in opt['ylabel']:
             axg = ax.twinx()
             yl = ax.get_ylim()
             axg.set_ylabel('g-factor',fontsize=text_size)

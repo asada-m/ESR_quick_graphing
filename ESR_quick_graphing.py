@@ -1,5 +1,5 @@
 """
-ESR quick graphing ver 1.05 (2021/01/26)
+ESR quick graphing ver 1.06 (2021/02/03)
 Main loop and functions related to GUI window
 """
 import os
@@ -8,12 +8,13 @@ import PySimpleGUI as sg
 import ESR_graph_module as egm
 from ESR_graph_layout import *
 
-window = sg.Window('ESR quick graphing ver1.05',LAYOUT,finalize=True)
+window = sg.Window(APP_TITLE,LAYOUT,finalize=True)
 window['@link'].set_cursor(cursor='hand2') # mouse-over events
 window['@link2'].set_cursor(cursor='hand2')
 
 graph_OK = False
-win2_active, win3_active = False, False
+file = ''
+win2_active, win3_active, win4_active = False, False, False
 filelist, file_use, file_use_list = [],[],[]
 filelist_dat, file_use_dat, file_use_list_dat = [],[],[]
 flist_DTADSC, flist_DAT = [],[]
@@ -76,10 +77,10 @@ def update_margin(xpar, ypar, separate):
     value['@mar_XL'],value['@mar_XR'],value['@mar_YL'],value['@mar_YH'],value['@stk'] = xpar,xpar,ypar,ypar,separate
 
 # select data ===================================================
-def add_files(isDTA):
+def add_files(selected, isDTA):
     if isDTA == True:
-        selected, list_A, list_B, allfiles = value['@liall'], file_use, file_use_list, flist_DTADSC
-    else: selected, list_A, list_B, allfiles = value['@@liall'], file_use_dat, file_use_list_dat, flist_DAT
+        list_A, list_B, allfiles = file_use, file_use_list, flist_DTADSC
+    else: list_A, list_B, allfiles = file_use_dat, file_use_list_dat, flist_DAT
     for x in selected:
         if x not in list_A:
             list_A.append(x)
@@ -200,10 +201,10 @@ def save_a_data():
             win2.Close()
             win2_active = False
             break
-        elif ev_save == '@fol_save':
+        elif ev_save == '@fol_save' and val_save['@fol_save'] != '':
             save_files = read_filelist(val_save['@fol_save'],ext)
             win2['@savelist'].update(save_files)
-        elif ev_save == '@savelist':
+        elif ev_save == '@savelist' and val_save['@savelist'] != []:
             win2['@name'].update(val_save['@savelist'][0][:-len(ext)])
         elif ev_save == 'save' and val_save['@fol_save'] != '' and val_save['@name'] != '':
             sname = val_save['@name']+ ext
@@ -230,28 +231,62 @@ def save_options(value):
     while True:
         ev_fopt,val_fopt = win3.read()
         if ev_fopt in ('Cancel',sg.WIN_CLOSED):
-            win3.Close()
-            win3_active = False
             break
         elif ev_fopt == 'OK' and val_fopt['@opt_save_name'] != '':
             if save_options_pop(val_fopt['@opt_save_name'],value) == True:
-                win3.Close()
-                win3_active = False
                 break
+    win3.Close()
+    win3_active = False
+
+def show_parameter(files):
+    win4_active = True
+    lists = []
+    para = ('TITL','DATE','TIME','FrequencyMon','Power','PowerAtten','Gain','ModAmp','ConvTime','TimeConst','SweepTime','QValue','NbScansDone')
+    name = ('File name','Data name','Date','Time','MWfrequency','MWPower','MWAtten','Gain','ModAmp','ConvTime','TimeConst','SweepTime','Q-value','Scans')
+    lists = [[xfile[0]] + [xfile[3][param] if param in xfile[3] else '-' for param in para] for xfile in files]
+    lyt = [[sg.Table(lists,headings=name,vertical_scroll_only=False)],
+    [sg.Button('OK')],]
+    win4 = sg.Window('Parameters',lyt)
+    while True:
+        ev, val = win4.read()
+        if ev in ('OK',sg.WIN_CLOSED):
+            break
+    win4.Close()
+    win4_active = False
 
 # main loop =================================================
 while True:
     event,value = window.read()
-#    print(state)
+#    print(event)
     if event in (sg.WIN_CLOSED, 'Exit'): break
 # select folder =================================================
+    elif event == '@fol_browse':
+        file = sg.PopupGetFile('Browse',
+            file_types=(('BES3T parameter files','*.DSC'),('BES3T data files','*.DTA'),('All','*.*')),
+            no_window=True,initial_folder=ini_fo)
+        if file == '': continue
+        ini_fo = None
+        folder = os.path.dirname(file)
+        value['@fol_read'] = folder
+        window['@fol_read'].update(value=folder)
+        # read files
+        flist_DTADSC = egm.folder_select(value['@fol_read'])
+        filelist = []
+        if flist_DTADSC and not flist_DTADSC[0]: continue
+        for x in flist_DTADSC:
+            if egm.find_data(x,value) == True: filelist.append(x[0])
+        # add selected file
+        if egm.DTADSC_exists(folder,file) == True:
+            file_base = os.path.basename(file)[:-4]
+            file_use,file_use_list = add_files([file_base],True)
+            update_enable_options()
+            if state_staged & 8: update_margin(0,0,0)
     elif event == '@fol_read' and value['@fol_read']:
         flist_DTADSC = egm.folder_select(value['@fol_read'])
         filelist = []
         if flist_DTADSC and not flist_DTADSC[0]: continue
         for x in flist_DTADSC:
             if egm.find_data(x,value) == True: filelist.append(x[0])
-        window['@fol_browse'].InitialFolder = None
     elif event in ('@find_d','@find_a','@find_m'):
         if flist_DTADSC and not flist_DTADSC[0]: continue
         filelist = []
@@ -265,32 +300,51 @@ while True:
                 MAX_DATALIST = 20 #temp
         for x in flist_DTADSC:
             if egm.find_data(x,value) == True: filelist.append(x[0])
+    elif event == '@@fol_browse':
+        file = sg.PopupGetFile('Browse',
+            file_types=(('Data files','*.dat'),('All','*.*')),
+            no_window=True,initial_folder=ini_fo)
+        if file == '': continue
+        ini_fo = None
+        folder = os.path.dirname(file)
+        value['@@fol_read'] = folder
+        window['@@fol_read'].update(value=folder)
+        # read files
+        flist_DAT = egm.folder_select_dat(value['@@fol_read'])
+        filelist_dat = []
+        if flist_DAT and not flist_DAT[0]: continue
+        for x in flist_DAT:
+            if egm.find_data_dat(x,value) == True: filelist_dat.append(x[0])
+        # add selected file
+        if os.path.splitext(file)[1] in ('.DAT','.dat'):
+            file = os.path.basename(file)[:-4]
+            file_use_dat,file_use_list_dat = add_files([file],False)
     elif event == '@@fol_read' and value['@@fol_read']:
         flist_DAT = egm.folder_select_dat(value['@@fol_read'])
         filelist_dat = []
         if flist_DAT and not flist_DAT[0]: continue
         for x in flist_DAT:
             if egm.find_data_dat(x,value) == True: filelist_dat.append(x[0])
-        window['@@fol_browse'].InitialFolder = None
+#        window['@@fol_browse'].InitialFolder = None
     elif event == '@@find_free':
         if flist_DAT and not flist_DAT[0]: continue
         filelist_dat = []
         for x in flist_DAT:
             if egm.find_data_dat(x,value) == True: filelist_dat.append(x[0])
 # select data ===================================================
-    elif event == ' ↓ add ' and value['@liall'] != []:
-        file_use,file_use_list = add_files(True)
+    elif event in (' ↓ add ', '@liall') and value['@liall'] != []:
+        file_use,file_use_list = add_files(value['@liall'],True)
         update_enable_options()
         if state_staged & 8: update_margin(0,0,0)
-    elif event == ' ↑ remove ' and value['@liuse'] != []:
+    elif event in (' ↑ remove ', '@liuse') and value['@liuse'] != []:
         file_use,file_use_list = remove_files(True)
         update_enable_options()
     elif event == '× Clear list':
         file_use, file_use_list = [], []
         update_enable_options()
-    elif event == '@@b_add' and value['@@liall'] != []:
-        file_use_dat,file_use_list_dat = add_files(False)
-    elif event == '@@b_remove' and value['@@liuse'] != []:
+    elif event in ('@@b_add', '@@liall') and value['@@liall'] != []:
+        file_use_dat,file_use_list_dat = add_files(value['@@liall'],False)
+    elif event in ('@@b_remove', '@@liuse') and value['@@liuse'] != []:
         file_use_dat,file_use_list_dat = remove_files(False)
     elif event == '@@b_clear':
         file_use_dat, file_use_list_dat = [], []
@@ -323,12 +377,20 @@ while True:
         for xfile in file_use_list_dat:
             xfile[3] = ''
 # make and save graph ==========================================
-    elif event == 'show':
+    elif event == 'refresh':
         show_graph()
     elif event == 'save figure' and graph_OK:
         save_a_data()
 # save settings ==================================================
     elif event == 'save settings':
+        if not value['@s_filerow'].isdecimal():
+            value['@s_filerow'] = file_row
+        if not value['@s_datarow'].isdecimal():
+            value['@s_datarow'] = data_row
+        if int(value['@s_filerow']) < 2: value['@s_filerow'] = 2
+        if int(value['@s_datarow']) < 2: value['@s_datarow'] = 2
+        window['@s_datarow'].update(value=value['@s_datarow'])
+        window['@s_filerow'].update(value=value['@s_filerow'])
         save_ini(value)
         sg.popup('Save complete.','Settings are applied after restart application.')
     elif event == '@b_col_reset':
@@ -349,6 +411,9 @@ while True:
 # slider ===================================================
     elif event == '@b_mar_reset':
         update_margin(0,0,0) if state_staged & 8 else update_margin(5,5,0)
+# DSC parameter list ===========================================
+    elif event == 'parameter' and file_use_list != []:
+        show_parameter(file_use_list)
 # open links in browser ========================================
     elif event == '@link':
         webbrowser.open('https://matplotlib.org/3.3.3/gallery/color/named_colors.html')
@@ -387,7 +452,7 @@ while True:
           window['@@b_add'].update(disabled=True)
     else: window['@@b_add'].update(disabled=False)
 
-    if value['@light'] == False and event != 'show':
+    if value['@light'] == False and event not in ('refresh','save figure','@link','@link2','parameter'):
         show_graph()
 
 window.close()
